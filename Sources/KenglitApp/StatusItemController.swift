@@ -15,7 +15,7 @@ final class StatusItemController: NSObject, NSMenuDelegate {
         statusItem = NSStatusBar.system.statusItem(withLength: NSStatusItem.variableLength)
         if let button = statusItem.button {
             button.image = Self.menuBarImage(enabled: model.preferences.isEnabled)
-            button.toolTip = "kenglit"
+            button.toolTip = "Kenglit"
         }
         rebuildMenu()
         model.preferences.objectWillChange

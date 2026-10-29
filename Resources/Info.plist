@@ -6,6 +6,8 @@
   <string>dev.finn.kenglit</string>
   <key>CFBundleName</key>
   <string>Kenglit</string>
+  <key>CFBundleDisplayName</key>
+  <string>Kenglit</string>
   <key>CFBundleExecutable</key>
   <string>Kenglit</string>
   <key>CFBundlePackageType</key>

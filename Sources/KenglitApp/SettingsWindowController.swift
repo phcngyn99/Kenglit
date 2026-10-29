@@ -18,7 +18,7 @@ final class SettingsWindowController: NSWindowController {
             backing: .buffered,
             defer: false
         )
-        window.title = "kenglit Settings"
+        window.title = "Kenglit Settings"
         window.center()
         super.init(window: window)
         window.contentView = buildContent()
