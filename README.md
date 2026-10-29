@@ -1,4 +1,4 @@
-# kenglit
+# Kenglit
 
 Menu-bar macOS app: forces **English** keyboard when a terminal/coding app is focused.
 
