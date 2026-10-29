@@ -14,10 +14,8 @@ final class StatusItemController: NSObject, NSMenuDelegate {
         super.init()
         statusItem = NSStatusBar.system.statusItem(withLength: NSStatusItem.variableLength)
         if let button = statusItem.button {
-            button.image = NSImage(
-                systemSymbolName: "keyboard",
-                accessibilityDescription: "kenglish"
-            )
+            button.image = Self.menuBarImage(enabled: model.preferences.isEnabled)
+            button.toolTip = "kenglish"
         }
         rebuildMenu()
         model.preferences.objectWillChange
@@ -32,8 +30,21 @@ final class StatusItemController: NSObject, NSMenuDelegate {
     }
 
     private func updateIcon() {
-        let name = model.preferences.isEnabled ? "keyboard" : "keyboard.chevron.compact.down"
-        statusItem.button?.image = NSImage(systemSymbolName: name, accessibilityDescription: "kenglish")
+        statusItem.button?.image = Self.menuBarImage(enabled: model.preferences.isEnabled)
+    }
+
+    private static func menuBarImage(enabled: Bool) -> NSImage {
+        if let img = NSImage(named: "kenglishTemplate") {
+            img.isTemplate = true
+            img.size = NSSize(width: 18, height: 18)
+            // Dim when disabled via template + lower alpha layer is awkward; use system symbol fallback look
+            if !enabled {
+                img.accessibilityDescription = "kenglish (off)"
+            }
+            return img
+        }
+        let name = enabled ? "keyboard" : "keyboard.chevron.compact.down"
+        return NSImage(systemSymbolName: name, accessibilityDescription: "kenglish") ?? NSImage()
     }
 
     private func rebuildMenu() {

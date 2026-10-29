@@ -3,3 +3,4 @@ DerivedData/
 dist/
 .superpowers/
 *.xcodeproj/xcuserdata/
+Resources/AppIcon.iconset/
