@@ -1,5 +1,5 @@
 import Foundation
-import KenglishCore
+import KenglitCore
 
 enum Check {
     private static var failures = 0
@@ -41,7 +41,7 @@ do {
 
 // --- PreferencesStore ---
 do {
-    let suite = "dev.finn.kenglish.tests.\(UUID().uuidString)"
+    let suite = "dev.finn.kenglit.tests.\(UUID().uuidString)"
     guard let defaults = UserDefaults(suiteName: suite) else {
         Check.expect(false, "suite defaults")
         Check.finish()

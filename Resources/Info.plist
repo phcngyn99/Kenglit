@@ -3,11 +3,11 @@
 <plist version="1.0">
 <dict>
   <key>CFBundleIdentifier</key>
-  <string>dev.finn.kenglish</string>
+  <string>dev.finn.kenglit</string>
   <key>CFBundleName</key>
-  <string>kenglish</string>
+  <string>Kenglit</string>
   <key>CFBundleExecutable</key>
-  <string>Kenglish</string>
+  <string>Kenglit</string>
   <key>CFBundlePackageType</key>
   <string>APPL</string>
   <key>LSMinimumSystemVersion</key>

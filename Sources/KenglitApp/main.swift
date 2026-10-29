@@ -1,8 +1,8 @@
 import AppKit
-import KenglishCore
+import KenglitCore
 
 @main
-enum KenglishMain {
+enum KenglitMain {
     static func main() {
         let app = NSApplication.shared
         app.setActivationPolicy(.accessory) // menu-bar only, no Dock
@@ -15,7 +15,7 @@ enum KenglishMain {
 
         // Re-sync monitor when settings toggle Enabled without going through menu
         NotificationCenter.default.addObserver(
-            forName: .kenglishPrefsChanged,
+            forName: .kenglitPrefsChanged,
             object: nil,
             queue: .main
         ) { _ in

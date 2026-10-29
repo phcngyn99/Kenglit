@@ -1,6 +1,6 @@
 import Foundation
 import Carbon
-import KenglishCore
+import KenglitCore
 
 final class CarbonInputSourceSwitcher: InputSourceSwitching {
     func currentSourceID() -> String? {

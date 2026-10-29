@@ -1,6 +1,6 @@
 import Foundation
 import Combine
-import KenglishCore
+import KenglitCore
 
 @MainActor
 final class AppModel: ObservableObject {

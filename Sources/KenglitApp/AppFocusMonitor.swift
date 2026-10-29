@@ -1,6 +1,6 @@
 import AppKit
 import Combine
-import KenglishCore
+import KenglitCore
 
 @MainActor
 final class AppFocusMonitor: ObservableObject {

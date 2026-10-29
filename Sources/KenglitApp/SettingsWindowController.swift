@@ -1,5 +1,5 @@
 import AppKit
-import KenglishCore
+import KenglitCore
 
 @MainActor
 final class SettingsWindowController: NSWindowController {
@@ -18,7 +18,7 @@ final class SettingsWindowController: NSWindowController {
             backing: .buffered,
             defer: false
         )
-        window.title = "kenglish Settings"
+        window.title = "kenglit Settings"
         window.center()
         super.init(window: window)
         window.contentView = buildContent()
@@ -92,7 +92,7 @@ final class SettingsWindowController: NSWindowController {
 
     @objc private func toggleEnabled() {
         preferences.isEnabled = (enabledButton.state == .on)
-        NotificationCenter.default.post(name: .kenglishPrefsChanged, object: nil)
+        NotificationCenter.default.post(name: .kenglitPrefsChanged, object: nil)
     }
 
     @objc private func toggleLogin() {
@@ -112,7 +112,7 @@ final class SettingsWindowController: NSWindowController {
         preferences.addWatchedBundleID(id)
         bundleField.stringValue = ""
         reloadTable()
-        NotificationCenter.default.post(name: .kenglishPrefsChanged, object: nil)
+        NotificationCenter.default.post(name: .kenglitPrefsChanged, object: nil)
     }
 
     @objc private func removeSelected() {
@@ -121,21 +121,21 @@ final class SettingsWindowController: NSWindowController {
         let id = preferences.watchedBundleIDs[row]
         preferences.removeWatchedBundleID(id)
         reloadTable()
-        NotificationCenter.default.post(name: .kenglishPrefsChanged, object: nil)
+        NotificationCenter.default.post(name: .kenglitPrefsChanged, object: nil)
     }
 
     @objc private func addFrontmost() {
         guard let id = NSWorkspace.shared.frontmostApplication?.bundleIdentifier,
-              id != "dev.finn.kenglish" else { return }
+              id != "dev.finn.kenglit" else { return }
         preferences.addWatchedBundleID(id)
         reloadTable()
-        NotificationCenter.default.post(name: .kenglishPrefsChanged, object: nil)
+        NotificationCenter.default.post(name: .kenglitPrefsChanged, object: nil)
     }
 
     @objc private func resetDefaults() {
         preferences.setWatchedBundleIDs(WatchedApps.defaults)
         reloadTable()
-        NotificationCenter.default.post(name: .kenglishPrefsChanged, object: nil)
+        NotificationCenter.default.post(name: .kenglitPrefsChanged, object: nil)
     }
 }
 
@@ -159,5 +159,5 @@ extension SettingsWindowController: NSTableViewDataSource, NSTableViewDelegate {
 }
 
 extension Notification.Name {
-    static let kenglishPrefsChanged = Notification.Name("dev.finn.kenglish.prefsChanged")
+    static let kenglitPrefsChanged = Notification.Name("dev.finn.kenglit.prefsChanged")
 }

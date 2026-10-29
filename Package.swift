@@ -2,23 +2,23 @@
 import PackageDescription
 
 let package = Package(
-    name: "Kenglish",
+    name: "Kenglit",
     platforms: [.macOS(.v13)],
     products: [
-        .library(name: "KenglishCore", targets: ["KenglishCore"]),
-        .executable(name: "KenglishCoreChecks", targets: ["KenglishCoreChecks"]),
-        .executable(name: "Kenglish", targets: ["KenglishApp"]),
+        .library(name: "KenglitCore", targets: ["KenglitCore"]),
+        .executable(name: "KenglitCoreChecks", targets: ["KenglitCoreChecks"]),
+        .executable(name: "Kenglit", targets: ["KenglitApp"]),
     ],
     targets: [
-        .target(name: "KenglishCore"),
+        .target(name: "KenglitCore"),
         .executableTarget(
-            name: "KenglishCoreChecks",
-            dependencies: ["KenglishCore"]
+            name: "KenglitCoreChecks",
+            dependencies: ["KenglitCore"]
         ),
         .executableTarget(
-            name: "KenglishApp",
-            dependencies: ["KenglishCore"],
-            path: "Sources/KenglishApp",
+            name: "KenglitApp",
+            dependencies: ["KenglitCore"],
+            path: "Sources/KenglitApp",
             linkerSettings: [
                 .linkedFramework("Carbon"),
                 .linkedFramework("AppKit"),

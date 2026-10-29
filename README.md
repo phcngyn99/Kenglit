@@ -1,4 +1,4 @@
-# kenglish
+# kenglit
 
 Menu-bar macOS app: forces **English** keyboard when a terminal/coding app is focused.
 
@@ -12,13 +12,13 @@ Menu-bar macOS app: forces **English** keyboard when a terminal/coding app is fo
 
 ```bash
 ./Scripts/pack-app.sh
-open dist/kenglish.app
+open dist/kenglit.app
 ```
 
 Debug binary:
 
 ```bash
-swift build --product Kenglish
+swift build --product Kenglit
 ```
 
 ## Use
@@ -39,13 +39,13 @@ Add result in Settings if different from seed default.
 ## Core tests (no full Xcode)
 
 ```bash
-swift run KenglishCoreChecks
+swift run KenglitCoreChecks
 ```
 
 ## Design
 
-See `docs/superpowers/specs/2026-10-29-kenglish-design.md`.
+See `docs/superpowers/specs/2026-10-29-kenglit-design.md`.
 
 ## Architecture note
 
-App UI is **AppKit** menu bar (not SwiftUI) so it builds with Command Line Tools alone. Core logic lives in `KenglishCore` and is checked by `KenglishCoreChecks`.
+App UI is **AppKit** menu bar (not SwiftUI) so it builds with Command Line Tools alone. Core logic lives in `KenglitCore` and is checked by `KenglitCoreChecks`.

@@ -1,4 +1,4 @@
-# kenglish — Design Spec
+# kenglit — Design Spec
 
 **Date:** 2026-10-29  
 **Status:** Approved for planning  
@@ -47,7 +47,7 @@ PreferencesStore (UserDefaults) + LaunchAtLogin (SMAppService)
 
 | Module | Responsibility |
 |--------|----------------|
-| `KenglishApp` | `@main`, `MenuBarExtra`, app lifecycle |
+| `KenglitApp` | `@main`, `MenuBarExtra`, app lifecycle |
 | `AppFocusMonitor` | Subscribe/unsubscribe; debounce ~50–100ms |
 | `InputSourceSwitcher` | Resolve EN source; select if not already EN |
 | `PreferencesStore` | enabled, launchAtLogin, watched bundle IDs |
@@ -96,7 +96,7 @@ Settings must support: toggle defaults, add current front app, add/remove custom
 ## Platform & packaging
 
 - macOS 13+ (Ventura) for `MenuBarExtra` + `SMAppService`.
-- Bundle ID: `dev.finn.kenglish`
+- Bundle ID: `dev.finn.kenglit`
 - Ad-hoc code sign for local use; notarization optional later.
 - Deliver as `.app` (Xcode project or SwiftPM + pack script).
 
