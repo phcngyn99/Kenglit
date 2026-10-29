@@ -7,12 +7,23 @@ let package = Package(
     products: [
         .library(name: "KenglishCore", targets: ["KenglishCore"]),
         .executable(name: "KenglishCoreChecks", targets: ["KenglishCoreChecks"]),
+        .executable(name: "Kenglish", targets: ["KenglishApp"]),
     ],
     targets: [
         .target(name: "KenglishCore"),
         .executableTarget(
             name: "KenglishCoreChecks",
             dependencies: ["KenglishCore"]
+        ),
+        .executableTarget(
+            name: "KenglishApp",
+            dependencies: ["KenglishCore"],
+            path: "Sources/KenglishApp",
+            linkerSettings: [
+                .linkedFramework("Carbon"),
+                .linkedFramework("AppKit"),
+                .linkedFramework("ServiceManagement"),
+            ]
         ),
     ]
 )
