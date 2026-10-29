@@ -12,7 +12,7 @@ Menu-bar macOS app: forces **English** keyboard when a terminal/coding app is fo
 
 ```bash
 ./Scripts/pack-app.sh
-open dist/kenglit.app
+open dist/Kenglit.app
 ```
 
 Debug binary:
