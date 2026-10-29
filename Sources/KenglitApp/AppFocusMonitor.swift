@@ -61,21 +61,38 @@ final class AppFocusMonitor: ObservableObject {
     func evaluateNow() {
         guard preferences.isEnabled else { return }
         let frontID = NSWorkspace.shared.frontmostApplication?.bundleIdentifier
+        // Never treat ourselves as a switch target — leave layout alone while settings open
+        if frontID == "dev.finn.kenglit" { return }
+
         let watched = Set(preferences.watchedBundleIDs)
         let currentID = switcher.currentSourceID()
         let isEN = switcher.isEnglish(currentID)
+        let isVI = switcher.isVietnamese(currentID)
         let decision = FocusPolicy.decide(
             isEnabled: preferences.isEnabled,
             frontBundleID: frontID,
             watched: watched,
-            currentIsEnglish: isEN
+            currentIsEnglish: isEN,
+            currentIsVietnamese: isVI
         )
-        guard decision.shouldSwitchToEnglish else { return }
-        if !switcher.englishSourceAvailable() {
-            lastWarning = "No English keyboard found"
+
+        switch decision.action {
+        case .none:
             return
+        case .switchToEnglish:
+            if !switcher.englishSourceAvailable() {
+                lastWarning = "No English keyboard found"
+                return
+            }
+            lastWarning = nil
+            _ = switcher.selectEnglish()
+        case .switchToVietnamese:
+            if !switcher.vietnameseSourceAvailable() {
+                lastWarning = "No Vietnamese keyboard found"
+                return
+            }
+            lastWarning = nil
+            _ = switcher.selectVietnamese()
         }
-        lastWarning = nil
-        _ = switcher.selectEnglish()
     }
 }

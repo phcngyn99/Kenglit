@@ -14,17 +14,30 @@ final class CarbonInputSourceSwitcher: InputSourceSwitching {
         preferredEnglishSource() != nil
     }
 
+    func vietnameseSourceAvailable() -> Bool {
+        preferredVietnameseSource() != nil
+    }
+
     func isEnglish(_ sourceID: String?) -> Bool {
-        let map = languagesByID()
-        return EnglishSourceResolver.isEnglishID(sourceID, languagesByID: map)
+        EnglishSourceResolver.isEnglishID(sourceID, languagesByID: languagesByID())
+    }
+
+    func isVietnamese(_ sourceID: String?) -> Bool {
+        VietnameseSourceResolver.isVietnameseID(sourceID, languagesByID: languagesByID())
     }
 
     @discardableResult
     func selectEnglish() -> Bool {
         if isEnglish(currentSourceID()) { return true }
         guard let src = preferredEnglishSource() else { return false }
-        let status = TISSelectInputSource(src)
-        return status == noErr
+        return TISSelectInputSource(src) == noErr
+    }
+
+    @discardableResult
+    func selectVietnamese() -> Bool {
+        if isVietnamese(currentSourceID()) { return true }
+        guard let src = preferredVietnameseSource() else { return false }
+        return TISSelectInputSource(src) == noErr
     }
 
     private func preferredEnglishSource() -> TISInputSource? {
@@ -32,6 +45,19 @@ final class CarbonInputSourceSwitcher: InputSourceSwitching {
         let ids = sources.compactMap { Self.stringProperty($0, key: kTISPropertyInputSourceID) }
         let langs = languagesByID(from: sources)
         guard let preferred = EnglishSourceResolver.resolvePreferredID(
+            availableIDs: ids,
+            languagesByID: langs
+        ) else { return nil }
+        return sources.first {
+            Self.stringProperty($0, key: kTISPropertyInputSourceID) == preferred
+        }
+    }
+
+    private func preferredVietnameseSource() -> TISInputSource? {
+        let sources = enabledSources()
+        let ids = sources.compactMap { Self.stringProperty($0, key: kTISPropertyInputSourceID) }
+        let langs = languagesByID(from: sources)
+        guard let preferred = VietnameseSourceResolver.resolvePreferredID(
             availableIDs: ids,
             languagesByID: langs
         ) else { return nil }

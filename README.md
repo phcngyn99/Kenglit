@@ -25,7 +25,7 @@ swift build --product Kenglit
 
 1. Menu bar keyboard icon → **Enabled**
 2. Focus Terminal / Warp / Cursor → input becomes EN
-3. Leave to Teams → stays EN (switch VI yourself)
+3. Leave to Teams / browser → auto Vietnamese
 4. **Settings…** → add bundle IDs, launch at login, **Test switch to EN**
 
 ## Verify Cursor bundle ID

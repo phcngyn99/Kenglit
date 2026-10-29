@@ -1,32 +1,50 @@
+public enum FocusAction: Equatable {
+    case none
+    case switchToEnglish
+    case switchToVietnamese
+}
+
 public struct FocusDecision: Equatable {
-    public let shouldSwitchToEnglish: Bool
+    public let action: FocusAction
     public let reason: String
 
-    public init(shouldSwitchToEnglish: Bool, reason: String) {
-        self.shouldSwitchToEnglish = shouldSwitchToEnglish
+    public init(action: FocusAction, reason: String) {
+        self.action = action
         self.reason = reason
     }
+
+    /// Backward-compatible helper for tests / call sites that only care about EN.
+    public var shouldSwitchToEnglish: Bool { action == .switchToEnglish }
+    public var shouldSwitchToVietnamese: Bool { action == .switchToVietnamese }
 }
 
 public enum FocusPolicy {
+    /// Watched apps → English. Everything else (when enabled) → Vietnamese.
     public static func decide(
         isEnabled: Bool,
         frontBundleID: String?,
         watched: Set<String>,
-        currentIsEnglish: Bool
+        currentIsEnglish: Bool,
+        currentIsVietnamese: Bool
     ) -> FocusDecision {
         guard isEnabled else {
-            return FocusDecision(shouldSwitchToEnglish: false, reason: "disabled")
+            return FocusDecision(action: .none, reason: "disabled")
         }
         guard let id = frontBundleID, !id.isEmpty else {
-            return FocusDecision(shouldSwitchToEnglish: false, reason: "no-front-app")
+            return FocusDecision(action: .none, reason: "no-front-app")
         }
-        guard watched.contains(id) else {
-            return FocusDecision(shouldSwitchToEnglish: false, reason: "unwatched")
+
+        if watched.contains(id) {
+            if currentIsEnglish {
+                return FocusDecision(action: .none, reason: "watched-already-english")
+            }
+            return FocusDecision(action: .switchToEnglish, reason: "watched-needs-english")
         }
-        if currentIsEnglish {
-            return FocusDecision(shouldSwitchToEnglish: false, reason: "already-english")
+
+        // Outside watched apps: force Vietnamese
+        if currentIsVietnamese {
+            return FocusDecision(action: .none, reason: "unwatched-already-vietnamese")
         }
-        return FocusDecision(shouldSwitchToEnglish: true, reason: "watched-needs-english")
+        return FocusDecision(action: .switchToVietnamese, reason: "unwatched-needs-vietnamese")
     }
 }

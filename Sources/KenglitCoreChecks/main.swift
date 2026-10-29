@@ -67,28 +67,39 @@ do {
     defaults.removePersistentDomain(forName: suite)
 }
 
-// --- FocusPolicy ---
+// --- FocusPolicy two-way ---
 do {
     let watched: Set<String> = ["com.apple.Terminal", "com.microsoft.VSCode"]
-    Check.expect(
-        !FocusPolicy.decide(isEnabled: false, frontBundleID: "com.apple.Terminal", watched: watched, currentIsEnglish: false).shouldSwitchToEnglish,
-        "disabled never switches"
+
+    Check.equal(
+        FocusPolicy.decide(isEnabled: false, frontBundleID: "com.apple.Terminal", watched: watched, currentIsEnglish: false, currentIsVietnamese: true).action,
+        .none,
+        "disabled none"
     )
-    Check.expect(
-        !FocusPolicy.decide(isEnabled: true, frontBundleID: "com.microsoft.teams2", watched: watched, currentIsEnglish: false).shouldSwitchToEnglish,
-        "unwatched never switches"
+    Check.equal(
+        FocusPolicy.decide(isEnabled: true, frontBundleID: "com.apple.Terminal", watched: watched, currentIsEnglish: false, currentIsVietnamese: true).action,
+        .switchToEnglish,
+        "watched needs EN"
     )
-    Check.expect(
-        FocusPolicy.decide(isEnabled: true, frontBundleID: "com.apple.Terminal", watched: watched, currentIsEnglish: false).shouldSwitchToEnglish,
-        "watched not EN switches"
+    Check.equal(
+        FocusPolicy.decide(isEnabled: true, frontBundleID: "com.apple.Terminal", watched: watched, currentIsEnglish: true, currentIsVietnamese: false).action,
+        .none,
+        "watched already EN"
     )
-    Check.expect(
-        !FocusPolicy.decide(isEnabled: true, frontBundleID: "com.apple.Terminal", watched: watched, currentIsEnglish: true).shouldSwitchToEnglish,
-        "already EN no-op"
+    Check.equal(
+        FocusPolicy.decide(isEnabled: true, frontBundleID: "com.microsoft.teams2", watched: watched, currentIsEnglish: true, currentIsVietnamese: false).action,
+        .switchToVietnamese,
+        "unwatched needs VI"
     )
-    Check.expect(
-        !FocusPolicy.decide(isEnabled: true, frontBundleID: nil, watched: watched, currentIsEnglish: false).shouldSwitchToEnglish,
-        "nil front no-op"
+    Check.equal(
+        FocusPolicy.decide(isEnabled: true, frontBundleID: "com.microsoft.teams2", watched: watched, currentIsEnglish: false, currentIsVietnamese: true).action,
+        .none,
+        "unwatched already VI"
+    )
+    Check.equal(
+        FocusPolicy.decide(isEnabled: true, frontBundleID: nil, watched: watched, currentIsEnglish: false, currentIsVietnamese: false).action,
+        .none,
+        "nil front none"
     )
 }
 
@@ -110,21 +121,36 @@ do {
         "com.apple.keylayout.US",
         "fallback US"
     )
+}
+
+// --- VietnameseSourceResolver ---
+do {
     Check.equal(
-        EnglishSourceResolver.resolvePreferredID(
-            availableIDs: ["com.example.CustomEN", "com.apple.inputmethod.Vietnamese"],
-            languagesByID: ["com.example.CustomEN": ["en"], "com.apple.inputmethod.Vietnamese": ["vi"]]
+        VietnameseSourceResolver.resolvePreferredID(
+            availableIDs: [
+                "com.apple.keylayout.ABC",
+                "com.apple.inputmethod.VietnameseIM.VietnameseSimpleTelex",
+            ],
+            languagesByID: [:]
         ),
-        "com.example.CustomEN",
-        "fallback language en"
+        "com.apple.inputmethod.VietnameseIM.VietnameseSimpleTelex",
+        "prefer SimpleTelex"
     )
     Check.equal(
-        EnglishSourceResolver.resolvePreferredID(
-            availableIDs: ["com.apple.inputmethod.Vietnamese"],
-            languagesByID: ["com.apple.inputmethod.Vietnamese": ["vi"]]
+        VietnameseSourceResolver.resolvePreferredID(
+            availableIDs: ["com.example.OtherVI"],
+            languagesByID: ["com.example.OtherVI": ["vi-VN"]]
         ),
-        nil as String?,
-        "nil when nothing english"
+        "com.example.OtherVI",
+        "fallback language vi"
+    )
+    Check.expect(
+        VietnameseSourceResolver.isVietnameseID("com.apple.inputmethod.VietnameseIM.VietnameseTelex"),
+        "isVietnamese known id"
+    )
+    Check.expect(
+        !VietnameseSourceResolver.isVietnameseID("com.apple.keylayout.ABC"),
+        "ABC not vietnamese"
     )
 }
 
