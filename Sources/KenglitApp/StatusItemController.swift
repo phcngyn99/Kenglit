@@ -132,16 +132,23 @@ final class StatusItemController: NSObject, NSMenuDelegate {
         rebuildMenu()
     }
 
-    @objc private func openSettings() {
-        if let existing = settingsController {
-            existing.showWindow(nil)
-            NSApp.activate(ignoringOtherApps: true)
-            return
-        }
-        let controller = SettingsWindowController(preferences: model.preferences)
-        settingsController = controller
-        controller.showWindow(nil)
+    @objc func openSettings() {
+        // Temporarily regular so window reliably comes front from Applications click.
+        NSApp.setActivationPolicy(.regular)
         NSApp.activate(ignoringOtherApps: true)
+
+        if settingsController == nil {
+            settingsController = SettingsWindowController(preferences: model.preferences)
+        }
+        settingsController?.showWindow(nil)
+        settingsController?.window?.makeKeyAndOrderFront(nil)
+        NSApp.activate(ignoringOtherApps: true)
+
+        // Stay regular while Settings is open so it stays usable; restore when closed.
+        settingsController?.onClose = { [weak self] in
+            NSApp.setActivationPolicy(.accessory)
+            self?.settingsController = nil
+        }
     }
 
     @objc private func quitApp() {

@@ -8,6 +8,7 @@ final class SettingsWindowController: NSWindowController {
     private var table: NSTableView!
     private var loginButton: NSButton!
     private var errorLabel: NSTextField!
+    var onClose: (() -> Void)?
     /// Snapshot used by the table so scroll/recycle never reads a moving target.
     private var rows: [String] = []
 
@@ -348,6 +349,11 @@ final class SettingsWindowController: NSWindowController {
 
 extension SettingsWindowController: NSWindowDelegate {
     // Intentionally no reload on become-key / scroll. That wiped the UI.
+
+    func windowWillClose(_ notification: Notification) {
+        onClose?()
+        onClose = nil
+    }
 }
 
 extension SettingsWindowController: NSTableViewDataSource, NSTableViewDelegate {
