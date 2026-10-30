@@ -362,6 +362,9 @@ final class SettingsWindowController: NSWindowController {
 
             Other apps
             Switch to Vietnamese when focus leaves a listed app.
+
+            Author
+            Finn Nguyen × Hawking
             """
         )
     }
