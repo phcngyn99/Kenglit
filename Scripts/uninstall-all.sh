@@ -2,14 +2,13 @@
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
-HOME_APPS="${HOME}/Applications"
 
 pkill -x Kenglit 2>/dev/null || true
 sleep 0.3
 
 paths=(
-  "${HOME_APPS}/Kenglit.app"
   "/Applications/Kenglit.app"
+  "${HOME}/Applications/Kenglit.app"
   "${ROOT}/dist/Kenglit.app"
 )
 
@@ -33,7 +32,8 @@ done
 
 LSREG="/System/Library/Frameworks/CoreServices.framework/Frameworks/LaunchServices.framework/Support/lsregister"
 if [[ -x "$LSREG" ]]; then
-  "$LSREG" -u "${HOME_APPS}/Kenglit.app" 2>/dev/null || true
+  "$LSREG" -u "/Applications/Kenglit.app" 2>/dev/null || true
+  "$LSREG" -u "${HOME}/Applications/Kenglit.app" 2>/dev/null || true
 fi
 
 echo "Uninstalled (${removed})"

@@ -1,7 +1,7 @@
 .PHONY: help build check pack dmg install uninstall reinstall open version clean
 
 ROOT := $(abspath $(dir $(lastword $(MAKEFILE_LIST))))
-APP  := $(HOME)/Applications/Kenglit.app
+APP  := /Applications/Kenglit.app
 PLIST := $(ROOT)/Resources/Info.plist
 
 help:

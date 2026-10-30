@@ -28,8 +28,10 @@
 ## Install artifact
 
 - Click-install file: **`Kenglit-0.1.0-beta.dmg`** at repository root
-- Rebuild: `make dmg` → writes/overwrites that same path
+- Live install path: **`/Applications/Kenglit.app`** (`make install` / `make reinstall`)
+- Rebuild DMG: `make dmg` → same repo-root path
 - Do not put release DMGs under `dist/` (gitignored)
+- Uninstall also clears stale `~/Applications/Kenglit.app`
 
 ## Commands
 
