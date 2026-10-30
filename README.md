@@ -29,27 +29,40 @@ Repo root file (version is inside the app / About, not the filename):
 
     Kenglit.dmg
 
-On this machine:
-
-    /Users/FinNguyen/Work/not-finn/kenglish/Kenglit.dmg
-
     open /Users/FinNguyen/Work/not-finn/kenglish/Kenglit.dmg
 
 1. Double-click **`Kenglit.dmg`**
-2. Drag **Kenglit** → **Applications** (`/Applications` — Finder sidebar)
-3. Eject the DMG
-4. First launch elsewhere: right-click Kenglit → **Open** (ad-hoc signed)
-5. Menu bar icon → **On**
+2. Drag **Kenglit** → **Applications** (window shows a guide + Applications shortcut)
+3. Open **Install Guide.txt** on the disk if needed
+4. Eject the DMG
+5. First launch (see Gatekeeper below)
+6. Menu bar icon → **On**
 
-Install location: **`/Applications/Kenglit.app`** (Finder → Applications).
-Version: Settings → ⓘ (About).
+Install location: **`/Applications/Kenglit.app`**. Version: Settings → ⓘ.
+
+### Gatekeeper (“Apple could not verify…”)
+
+Beta builds are **ad-hoc signed**, not Apple-notarized. First open often shows:
+
+> Apple could not verify “Kenglit” is free of malware that may harm your Mac or compromise your privacy.
+
+**Fix (pick one):**
+
+1. Finder → Applications → **right-click Kenglit** → **Open** → **Open**
+2. Or: System Settings → **Privacy & Security** → scroll to Security → **Open Anyway** → confirm
+3. If it was blocked after a browser download:
+
+       xattr -cr /Applications/Kenglit.app
+
+   Then right-click → **Open** again.
+
+This is expected until a Developer ID + notarized release ships.
 
 ### From source
 
     make reinstall
 
-Target: **`/Applications/Kenglit.app`** (Finder → Applications).
-May prompt once for **admin password** (account is not in `admin` group).
+Target: **`/Applications/Kenglit.app`**. May prompt for admin password.
 Also removes stale `~/Applications/Kenglit.app`.
 
 ## Use

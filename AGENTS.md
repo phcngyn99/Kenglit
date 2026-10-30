@@ -31,8 +31,10 @@
 - Click-install file: **`Kenglit.dmg`** at repository root
 - Live install path: **`/Applications/Kenglit.app`** (`make install` / `make reinstall`)
 - `/Applications` write may prompt admin password via osascript
-- Rebuild DMG: `make dmg` → `Kenglit.dmg` (AppIcon volume + Finder icon)
+- Rebuild DMG: `make dmg` → `Kenglit.dmg` (install window layout + guide + AppIcon)
+- DMG assets: `Resources/dmg/background.png`, `Resources/dmg/Install Guide.txt`
 - Finder file icon uses a resource fork (not stored by git). After checkout/merge: `make dmg-icon`
+- Gatekeeper: ad-hoc beta — first launch needs right-click Open / Open Anyway (see README)
 - Do not put release DMGs under `dist/` (gitignored)
 - Uninstall also clears stale `~/Applications/Kenglit.app`
 
