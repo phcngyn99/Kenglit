@@ -1,11 +1,11 @@
-.PHONY: help build check icons pack dmg install uninstall reinstall open version clean
+.PHONY: help build check icons pack dmg dmg-icon install uninstall reinstall open version clean
 
 ROOT := $(abspath $(dir $(lastword $(MAKEFILE_LIST))))
 APP  := /Applications/Kenglit.app
 PLIST := $(ROOT)/Resources/Info.plist
 
 help:
-	@echo "make build | check | icons | pack | dmg | install | uninstall | reinstall | open | version | clean"
+	@echo "make build | check | icons | pack | dmg | dmg-icon | install | uninstall | reinstall | open | version | clean"
 
 build:
 	cd $(ROOT) && swift build --product Kenglit
@@ -22,6 +22,9 @@ pack:
 
 dmg:
 	$(ROOT)/Scripts/pack-dmg.sh
+
+dmg-icon:
+	$(ROOT)/Scripts/apply-dmg-icon.sh $(ROOT)/Kenglit.dmg $(ROOT)/Resources/AppIcon.icns
 
 install:
 	$(ROOT)/Scripts/install.sh
