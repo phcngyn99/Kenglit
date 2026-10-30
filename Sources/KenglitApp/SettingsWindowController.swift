@@ -6,19 +6,19 @@ import KenglitCore
 final class SettingsWindowController: NSWindowController {
     private let preferences: PreferencesStore
     private var table: NSTableView!
-    private var bundleField: NSTextField!
     private var loginButton: NSButton!
     private var errorLabel: NSTextField!
 
     init(preferences: PreferencesStore) {
         self.preferences = preferences
         let window = NSWindow(
-            contentRect: NSRect(x: 0, y: 0, width: 560, height: 460),
-            styleMask: [.titled, .closable, .miniaturizable],
+            contentRect: NSRect(x: 0, y: 0, width: 480, height: 520),
+            styleMask: [.titled, .closable, .miniaturizable, .resizable],
             backing: .buffered,
             defer: false
         )
         window.title = "Kenglit"
+        window.minSize = NSSize(width: 420, height: 360)
         window.center()
         super.init(window: window)
         window.contentView = buildContent()
@@ -30,56 +30,89 @@ final class SettingsWindowController: NSWindowController {
     required init?(coder: NSCoder) { fatalError() }
 
     private func buildContent() -> NSView {
-        let root = NSView(frame: NSRect(x: 0, y: 0, width: 560, height: 460))
+        let root = NSView(frame: NSRect(x: 0, y: 0, width: 480, height: 520))
 
+        // Top bar
         loginButton = NSButton(checkboxWithTitle: "Login start", target: self, action: #selector(toggleLogin))
-        loginButton.state = preferences.launchAtLogin ? .on : .off
-        loginButton.frame = NSRect(x: 20, y: 420, width: 200, height: 24)
+        loginButton.translatesAutoresizingMaskIntoConstraints = false
         root.addSubview(loginButton)
 
         errorLabel = NSTextField(labelWithString: "")
         errorLabel.textColor = .secondaryLabelColor
         errorLabel.font = .systemFont(ofSize: 11)
-        errorLabel.frame = NSRect(x: 230, y: 420, width: 300, height: 24)
+        errorLabel.translatesAutoresizingMaskIntoConstraints = false
         root.addSubview(errorLabel)
 
-        let scroll = NSScrollView(frame: NSRect(x: 20, y: 90, width: 520, height: 310))
+        // Table
+        let scroll = NSScrollView()
+        scroll.translatesAutoresizingMaskIntoConstraints = false
         scroll.hasVerticalScroller = true
         scroll.borderType = .bezelBorder
-        table = NSTableView(frame: scroll.bounds)
-        let col = NSTableColumn(identifier: NSUserInterfaceItemIdentifier("id"))
+        scroll.drawsBackground = true
+
+        table = NSTableView()
+        table.headerView = nil
+        table.rowHeight = 36
+        table.allowsMultipleSelection = true
+        table.usesAlternatingRowBackgroundColors = true
+        table.style = .inset
+
+        let col = NSTableColumn(identifier: NSUserInterfaceItemIdentifier("app"))
         col.title = "EN apps"
-        col.width = 500
+        col.width = 400
         table.addTableColumn(col)
-        table.headerView = NSTableHeaderView()
         table.dataSource = self
         table.delegate = self
         scroll.documentView = table
         root.addSubview(scroll)
 
-        bundleField = NSTextField(frame: NSRect(x: 20, y: 50, width: 340, height: 24))
-        bundleField.placeholderString = "bundle.id"
-        root.addSubview(bundleField)
-
-        let add = NSButton(title: "Add", target: self, action: #selector(addBundle))
-        add.frame = NSRect(x: 370, y: 48, width: 70, height: 28)
-        root.addSubview(add)
-
-        let remove = NSButton(title: "Del", target: self, action: #selector(removeSelected))
-        remove.frame = NSRect(x: 450, y: 48, width: 90, height: 28)
-        root.addSubview(remove)
-
-        let addFront = NSButton(title: "Add front", target: self, action: #selector(addFrontmost))
-        addFront.frame = NSRect(x: 20, y: 16, width: 100, height: 28)
-        root.addSubview(addFront)
-
-        let pickApps = NSButton(title: "Apps…", target: self, action: #selector(pickFromApplications))
-        pickApps.frame = NSRect(x: 130, y: 16, width: 90, height: 28)
+        // Bottom buttons — browse-first
+        let pickApps = NSButton(title: "Add Apps…", target: self, action: #selector(pickFromApplications))
+        pickApps.translatesAutoresizingMaskIntoConstraints = false
+        pickApps.bezelStyle = .rounded
+        pickApps.keyEquivalent = "\r"
         root.addSubview(pickApps)
 
+        let addFront = NSButton(title: "Add front", target: self, action: #selector(addFrontmost))
+        addFront.translatesAutoresizingMaskIntoConstraints = false
+        addFront.bezelStyle = .rounded
+        root.addSubview(addFront)
+
+        let remove = NSButton(title: "Del", target: self, action: #selector(removeSelected))
+        remove.translatesAutoresizingMaskIntoConstraints = false
+        remove.bezelStyle = .rounded
+        root.addSubview(remove)
+
         let reset = NSButton(title: "Reset", target: self, action: #selector(resetDefaults))
-        reset.frame = NSRect(x: 230, y: 16, width: 80, height: 28)
+        reset.translatesAutoresizingMaskIntoConstraints = false
+        reset.bezelStyle = .rounded
         root.addSubview(reset)
+
+        NSLayoutConstraint.activate([
+            loginButton.leadingAnchor.constraint(equalTo: root.leadingAnchor, constant: 16),
+            loginButton.topAnchor.constraint(equalTo: root.topAnchor, constant: 14),
+
+            errorLabel.leadingAnchor.constraint(equalTo: loginButton.trailingAnchor, constant: 12),
+            errorLabel.centerYAnchor.constraint(equalTo: loginButton.centerYAnchor),
+            errorLabel.trailingAnchor.constraint(lessThanOrEqualTo: root.trailingAnchor, constant: -16),
+
+            scroll.leadingAnchor.constraint(equalTo: root.leadingAnchor, constant: 16),
+            scroll.trailingAnchor.constraint(equalTo: root.trailingAnchor, constant: -16),
+            scroll.topAnchor.constraint(equalTo: loginButton.bottomAnchor, constant: 12),
+            scroll.bottomAnchor.constraint(equalTo: pickApps.topAnchor, constant: -12),
+
+            pickApps.leadingAnchor.constraint(equalTo: root.leadingAnchor, constant: 16),
+            pickApps.bottomAnchor.constraint(equalTo: root.bottomAnchor, constant: -14),
+
+            addFront.leadingAnchor.constraint(equalTo: pickApps.trailingAnchor, constant: 8),
+            addFront.centerYAnchor.constraint(equalTo: pickApps.centerYAnchor),
+
+            remove.leadingAnchor.constraint(equalTo: addFront.trailingAnchor, constant: 8),
+            remove.centerYAnchor.constraint(equalTo: pickApps.centerYAnchor),
+
+            reset.trailingAnchor.constraint(equalTo: root.trailingAnchor, constant: -16),
+            reset.centerYAnchor.constraint(equalTo: pickApps.centerYAnchor),
+        ])
 
         return root
     }
@@ -101,20 +134,14 @@ final class SettingsWindowController: NSWindowController {
         }
     }
 
-    @objc private func addBundle() {
-        let id = bundleField.stringValue.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !id.isEmpty else { return }
-        preferences.addWatchedBundleID(id)
-        bundleField.stringValue = ""
-        reloadTable()
-        NotificationCenter.default.post(name: .kenglitPrefsChanged, object: nil)
-    }
-
     @objc private func removeSelected() {
-        let row = table.selectedRow
-        guard row >= 0, row < preferences.watchedBundleIDs.count else { return }
-        let id = preferences.watchedBundleIDs[row]
-        preferences.removeWatchedBundleID(id)
+        let rows = table.selectedRowIndexes.sorted(by: >)
+        guard !rows.isEmpty else { return }
+        var ids = preferences.watchedBundleIDs
+        for row in rows where row >= 0 && row < ids.count {
+            ids.remove(at: row)
+        }
+        preferences.setWatchedBundleIDs(ids)
         reloadTable()
         NotificationCenter.default.post(name: .kenglitPrefsChanged, object: nil)
     }
@@ -128,6 +155,7 @@ final class SettingsWindowController: NSWindowController {
             WatchedAppsUserNames.set(name, for: id)
         }
         reloadTable()
+        scrollToBundleID(id)
         NotificationCenter.default.post(name: .kenglitPrefsChanged, object: nil)
         errorLabel.textColor = .secondaryLabelColor
         errorLabel.stringValue = "+1"
@@ -141,15 +169,12 @@ final class SettingsWindowController: NSWindowController {
         panel.treatsFilePackagesAsDirectories = false
         panel.canCreateDirectories = false
         panel.prompt = "Add"
-        panel.message = "Pick apps -> EN"
-        panel.allowedFileTypes = ["app"]
-        let appsDir = URL(fileURLWithPath: "/Applications", isDirectory: true)
-        if FileManager.default.fileExists(atPath: appsDir.path) {
-            panel.directoryURL = appsDir
-        }
+        panel.message = "Choose apps for English"
+        panel.allowedContentTypes = [.application, .applicationBundle]
+        panel.directoryURL = URL(fileURLWithPath: "/Applications", isDirectory: true)
+        panel.canSelectHiddenExtension = true
 
-        // LSUIElement / accessory: open panels often fail unless app is regular.
-        let previousPolicy = NSApp.activationPolicy()
+        // Accessory apps need temporary regular policy or open panel dies silently.
         NSApp.setActivationPolicy(.regular)
         NSApp.activate(ignoringOtherApps: true)
         window?.makeKeyAndOrderFront(nil)
@@ -159,15 +184,16 @@ final class SettingsWindowController: NSWindowController {
         Self.log("pick response=\(response.rawValue) count=\(panel.urls.count)")
 
         NSApp.setActivationPolicy(.accessory)
-        _ = previousPolicy
 
         guard response == .OK else {
             errorLabel.stringValue = ""
+            window?.makeKeyAndOrderFront(nil)
             return
         }
 
         var added = 0
         var failed = 0
+        var lastID: String?
         for url in panel.urls {
             let resolved = url.resolvingSymlinksInPath()
             Self.log("pick try \(resolved.path)")
@@ -181,6 +207,7 @@ final class SettingsWindowController: NSWindowController {
             preferences.addWatchedBundleID(bid)
             if !before.contains(bid) {
                 added += 1
+                lastID = bid
             }
             if let name = Self.displayName(forAppURL: resolved), !name.isEmpty {
                 WatchedAppsUserNames.set(name, for: bid)
@@ -189,10 +216,8 @@ final class SettingsWindowController: NSWindowController {
         }
 
         reloadTable()
-        table.needsDisplay = true
-        let last = preferences.watchedBundleIDs.count - 1
-        if last >= 0 {
-            table.scrollRowToVisible(last)
+        if let lastID {
+            scrollToBundleID(lastID)
         }
         NotificationCenter.default.post(name: .kenglitPrefsChanged, object: nil)
 
@@ -214,7 +239,17 @@ final class SettingsWindowController: NSWindowController {
         preferences.setWatchedBundleIDs(WatchedApps.defaults)
         reloadTable()
         NotificationCenter.default.post(name: .kenglitPrefsChanged, object: nil)
+        errorLabel.stringValue = ""
     }
+
+    private func scrollToBundleID(_ id: String) {
+        if let idx = preferences.watchedBundleIDs.firstIndex(of: id) {
+            table.scrollRowToVisible(idx)
+            table.selectRowIndexes(IndexSet(integer: idx), byExtendingSelection: false)
+        }
+    }
+
+    // MARK: - Bundle helpers
 
     private static func bundleIdentifier(forAppURL url: URL) -> String? {
         let appURL = normalizeAppURL(url)
@@ -256,7 +291,6 @@ final class SettingsWindowController: NSWindowController {
         return u
     }
 
-
     private static func friendlyName(for bundleID: String) -> String {
         let mapped = WatchedAppsUserNames.displayName(for: bundleID)
         if mapped != bundleID { return mapped }
@@ -268,6 +302,23 @@ final class SettingsWindowController: NSWindowController {
             return url.deletingPathExtension().lastPathComponent
         }
         return bundleID
+    }
+
+    private static func appIcon(for bundleID: String) -> NSImage {
+        let size = NSSize(width: 28, height: 28)
+        if let url = NSWorkspace.shared.urlForApplication(withBundleIdentifier: bundleID) {
+            let icon = NSWorkspace.shared.icon(forFile: url.path)
+            icon.size = size
+            return icon
+        }
+        // Generic app icon fallback
+        if let generic = NSImage(systemSymbolName: "app.fill", accessibilityDescription: nil) {
+            let config = NSImage.SymbolConfiguration(pointSize: 18, weight: .regular)
+            let img = generic.withSymbolConfiguration(config) ?? generic
+            img.size = size
+            return img
+        }
+        return NSImage(size: size)
     }
 
     private static func log(_ msg: String) {
@@ -297,20 +348,52 @@ extension SettingsWindowController: NSTableViewDataSource, NSTableViewDelegate {
         preferences.watchedBundleIDs.count
     }
 
+    func tableView(_ tableView: NSTableView, heightOfRow row: Int) -> CGFloat {
+        36
+    }
+
     func tableView(_ tableView: NSTableView, viewFor tableColumn: NSTableColumn?, row: Int) -> NSView? {
-        let id = NSUserInterfaceItemIdentifier("cell")
-        let cell = tableView.makeView(withIdentifier: id, owner: nil) as? NSTextField
-            ?? {
-                let t = NSTextField(labelWithString: "")
-                t.identifier = id
-                t.font = .systemFont(ofSize: 12)
-                t.lineBreakMode = .byTruncatingMiddle
-                return t
-            }()
         let bid = preferences.watchedBundleIDs[row]
         let name = Self.friendlyName(for: bid)
-        // Always show name + id so bundle-only entries are findable
-        cell.stringValue = name == bid ? bid : "\(name)  ·  \(bid)"
+        let icon = Self.appIcon(for: bid)
+
+        let id = NSUserInterfaceItemIdentifier("AppCell")
+        let cell = tableView.makeView(withIdentifier: id, owner: nil) as? NSTableCellView
+            ?? {
+                let cell = NSTableCellView()
+                cell.identifier = id
+
+                let imageView = NSImageView()
+                imageView.identifier = NSUserInterfaceItemIdentifier("icon")
+                imageView.imageScaling = .scaleProportionallyUpOrDown
+                imageView.translatesAutoresizingMaskIntoConstraints = false
+                cell.addSubview(imageView)
+                cell.imageView = imageView
+
+                let text = NSTextField(labelWithString: "")
+                text.identifier = NSUserInterfaceItemIdentifier("name")
+                text.font = .systemFont(ofSize: 13, weight: .medium)
+                text.lineBreakMode = .byTruncatingTail
+                text.translatesAutoresizingMaskIntoConstraints = false
+                cell.addSubview(text)
+                cell.textField = text
+
+                NSLayoutConstraint.activate([
+                    imageView.leadingAnchor.constraint(equalTo: cell.leadingAnchor, constant: 8),
+                    imageView.centerYAnchor.constraint(equalTo: cell.centerYAnchor),
+                    imageView.widthAnchor.constraint(equalToConstant: 28),
+                    imageView.heightAnchor.constraint(equalToConstant: 28),
+
+                    text.leadingAnchor.constraint(equalTo: imageView.trailingAnchor, constant: 10),
+                    text.trailingAnchor.constraint(equalTo: cell.trailingAnchor, constant: -8),
+                    text.centerYAnchor.constraint(equalTo: cell.centerYAnchor),
+                ])
+                return cell
+            }()
+
+        cell.imageView?.image = icon
+        cell.textField?.stringValue = name
+        cell.toolTip = bid
         return cell
     }
 }
