@@ -64,8 +64,7 @@ final class StatusItemController: NSObject, NSMenuDelegate {
     }
 
     private func updateTooltip(enabled: Bool) {
-        let state = enabled ? "On" : "Off"
-        statusItem.button?.toolTip = "Kenglit · \(state)"
+        statusItem.button?.toolTip = enabled ? "Kenglit ON" : "Kenglit OFF"
     }
 
     private func pulseButton(emphasizeOn: Bool) {
@@ -116,22 +115,13 @@ final class StatusItemController: NSObject, NSMenuDelegate {
         let enabled = model.preferences.isEnabled
 
         let enabledItem = NSMenuItem(
-            title: enabled ? "On  ✓" : "Off",
+            title: enabled ? "ON" : "OFF",
             action: #selector(toggleEnabled),
             keyEquivalent: ""
         )
         enabledItem.target = self
         enabledItem.image = MenuBarIcon.make(enabled: enabled, size: 14)
         menu.addItem(enabledItem)
-
-        // Quick state hint
-        let hint = NSMenuItem(
-            title: enabled ? "Terminals → EN · else → VI" : "Auto-switch paused",
-            action: nil,
-            keyEquivalent: ""
-        )
-        hint.isEnabled = false
-        menu.addItem(hint)
 
         if let warning = model.monitor.lastWarning {
             let w = NSMenuItem(title: warning, action: nil, keyEquivalent: "")
@@ -141,13 +131,11 @@ final class StatusItemController: NSObject, NSMenuDelegate {
 
         menu.addItem(.separator())
 
-        let settings = NSMenuItem(title: "Settings…", action: #selector(openSettings), keyEquivalent: ",")
+        let settings = NSMenuItem(title: "Settings", action: #selector(openSettings), keyEquivalent: ",")
         settings.target = self
         menu.addItem(settings)
 
-        menu.addItem(.separator())
-
-        let quit = NSMenuItem(title: "Quit Kenglit", action: #selector(quitApp), keyEquivalent: "q")
+        let quit = NSMenuItem(title: "Quit", action: #selector(quitApp), keyEquivalent: "q")
         quit.target = self
         menu.addItem(quit)
 

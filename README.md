@@ -1,64 +1,37 @@
 # Kenglit
 
-Menu-bar macOS app: forces **English** keyboard when a terminal/coding app is focused.
+Menu bar app. Terminal focus -> EN. Else -> VI.
 
-## Requirements
-
+## Need
 - macOS 13+
-- English keyboard layout installed (ABC or US)
-- Xcode or Command Line Tools (`xcode-select --install`)
+- EN + VI keyboard on
 
-## Build and run
-
-```bash
-./Scripts/pack-app.sh
-open dist/Kenglit.app
-```
-
-Debug binary:
-
-```bash
-swift build --product Kenglit
-```
+## Build
+    ./Scripts/pack-app.sh
+    open dist/Kenglit.app
 
 ## Use
+1. Menu ON
+2. Terminal -> EN
+3. Other app -> VI
+4. Settings -> apps / login start
 
-1. Menu bar keyboard icon → **Enabled**
-2. Focus Terminal / Warp / Cursor → input becomes EN
-3. Leave to Teams / browser → auto Vietnamese
-4. **Settings…** → add bundle IDs, launch at login
+## Add app
+Focus app -> Settings -> Add front
+Or paste bundle id.
 
-## Verify Cursor bundle ID
+    osascript -e 'id of app "Cursor"'
 
-```bash
-osascript -e 'id of app "Cursor"'
-```
+## Test core
+    swift run KenglitCoreChecks
 
-Add result in Settings if different from seed default.
+## Default EN apps
+Terminal, iTerm2, Warp, Alacritty, WezTerm, Ghostty, kitty, Hyper, Tabby, Rio
+VS Code, Cursor, Zed, Nova, Sublime, CotEditor, BBEdit, TextMate, Xcode
+JetBrains pack, Android Studio
+GitHub Desktop, Fork, Tower, GitKraken, Docker, Postman
 
-## Core tests (no full Xcode)
+Upgrade merge new defaults. No wipe.
 
-```bash
-swift run KenglitCoreChecks
-```
-
-
-## Supported apps (default)
-
-Forces **English** when any of these are focused (others → Vietnamese):
-
-- Terminals: Terminal, iTerm2, Warp, Alacritty, WezTerm, Ghostty, kitty, Hyper, Tabby, Rio
-- Editors/IDEs: VS Code (+ Insiders), Cursor, Zed, Nova, Sublime Text, CotEditor, BBEdit, TextMate, Xcode
-- JetBrains: IntelliJ, WebStorm, PyCharm, GoLand, CLion, PhpStorm, RubyMine, DataGrip, Rider, RustRover, Android Studio
-- Tools: GitHub Desktop, Fork, Tower, GitKraken, Docker Desktop, Postman
-
-Add more anytime: **Settings → Add frontmost app** or paste a bundle ID.
-On upgrade, new defaults are merged into your list automatically.
-
-## Design
-
-See `docs/superpowers/specs/2026-10-29-kenglit-design.md`.
-
-## Architecture note
-
-App UI is **AppKit** menu bar (not SwiftUI) so it builds with Command Line Tools alone. Core logic lives in `KenglitCore` and is checked by `KenglitCoreChecks`.
+## Spec
+docs/superpowers/specs/2026-10-29-kenglit-design.md

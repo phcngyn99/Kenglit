@@ -17,7 +17,7 @@ final class SettingsWindowController: NSWindowController {
             backing: .buffered,
             defer: false
         )
-        window.title = "Kenglit Settings"
+        window.title = "Kenglit"
         window.center()
         super.init(window: window)
         window.contentView = buildContent()
@@ -30,7 +30,7 @@ final class SettingsWindowController: NSWindowController {
     private func buildContent() -> NSView {
         let root = NSView(frame: NSRect(x: 0, y: 0, width: 560, height: 460))
 
-        loginButton = NSButton(checkboxWithTitle: "Launch at login", target: self, action: #selector(toggleLogin))
+        loginButton = NSButton(checkboxWithTitle: "Login start", target: self, action: #selector(toggleLogin))
         loginButton.state = preferences.launchAtLogin ? .on : .off
         loginButton.frame = NSRect(x: 20, y: 420, width: 200, height: 24)
         root.addSubview(loginButton)
@@ -46,7 +46,7 @@ final class SettingsWindowController: NSWindowController {
         scroll.borderType = .bezelBorder
         table = NSTableView(frame: scroll.bounds)
         let col = NSTableColumn(identifier: NSUserInterfaceItemIdentifier("id"))
-        col.title = "Supported apps (EN when focused)"
+        col.title = "EN apps"
         col.width = 500
         table.addTableColumn(col)
         table.headerView = NSTableHeaderView()
@@ -63,15 +63,15 @@ final class SettingsWindowController: NSWindowController {
         add.frame = NSRect(x: 370, y: 48, width: 70, height: 28)
         root.addSubview(add)
 
-        let remove = NSButton(title: "Remove", target: self, action: #selector(removeSelected))
+        let remove = NSButton(title: "Del", target: self, action: #selector(removeSelected))
         remove.frame = NSRect(x: 450, y: 48, width: 90, height: 28)
         root.addSubview(remove)
 
-        let addFront = NSButton(title: "Add frontmost app", target: self, action: #selector(addFrontmost))
+        let addFront = NSButton(title: "Add front", target: self, action: #selector(addFrontmost))
         addFront.frame = NSRect(x: 20, y: 16, width: 160, height: 28)
         root.addSubview(addFront)
 
-        let reset = NSButton(title: "Reset to defaults", target: self, action: #selector(resetDefaults))
+        let reset = NSButton(title: "Reset", target: self, action: #selector(resetDefaults))
         reset.frame = NSRect(x: 190, y: 16, width: 150, height: 28)
         root.addSubview(reset)
 
@@ -89,7 +89,7 @@ final class SettingsWindowController: NSWindowController {
             preferences.launchAtLogin = want
             errorLabel.stringValue = ""
         } else {
-            errorLabel.stringValue = "Could not update login item"
+            errorLabel.stringValue = "Login fail"
             loginButton.state = preferences.launchAtLogin ? .on : .off
         }
     }
@@ -144,7 +144,7 @@ extension SettingsWindowController: NSTableViewDataSource, NSTableViewDelegate {
             }()
         let bid = preferences.watchedBundleIDs[row]
         let name = WatchedApps.displayName(for: bid)
-        cell.stringValue = name == bid ? bid : "\(name)  ·  \(bid)"
+        cell.stringValue = name == bid ? bid : name
         return cell
     }
 }

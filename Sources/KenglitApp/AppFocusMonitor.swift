@@ -81,14 +81,14 @@ final class AppFocusMonitor: ObservableObject {
             return
         case .switchToEnglish:
             if !switcher.englishSourceAvailable() {
-                lastWarning = "No English keyboard found"
+                lastWarning = "No EN kb"
                 return
             }
             lastWarning = nil
             _ = switcher.selectEnglish()
         case .switchToVietnamese:
             if !switcher.vietnameseSourceAvailable() {
-                lastWarning = "No Vietnamese keyboard found"
+                lastWarning = "No VI kb"
                 return
             }
             lastWarning = nil
