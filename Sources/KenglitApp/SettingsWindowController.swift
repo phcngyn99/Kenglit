@@ -98,12 +98,12 @@ final class SettingsWindowController: NSWindowController {
         let appsTitle = sectionLabel("Applications")
         root.addSubview(appsTitle)
 
-        let addBtn = textButton("Enforce [EN] an App", action: #selector(addApplications))
+        let addBtn = textButton("Enforce English App", action: #selector(addApplications))
         addBtn.toolTip = "Choose an app that should stay English"
         root.addSubview(addBtn)
 
         searchField = NSSearchField()
-        searchField.placeholderString = "Search"
+        searchField.placeholderString = "Search enforced apps"
         searchField.translatesAutoresizingMaskIntoConstraints = false
         searchField.target = self
         searchField.action = #selector(searchChanged)
