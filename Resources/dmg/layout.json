@@ -1,0 +1,11 @@
+{
+  "content_size_points": {"width": 760, "height": 600},
+  "icon_size_points": 96,
+  "items": [
+    {"name": "Kenglit.app", "x": 220, "y": 232},
+    {"name": "Applications", "x": 540, "y": 232, "symlink_target": "/Applications"}
+  ],
+  "background": "background.png",
+  "background_retina": "background@2x.png",
+  "notes": "All install instructions painted on background; no Install Guide.txt"
+}

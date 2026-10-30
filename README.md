@@ -31,10 +31,10 @@ Repo root file (version is inside the app / About, not the filename):
 
     open /Users/FinNguyen/Work/not-finn/kenglish/Kenglit.dmg
 
-1. Open **`Kenglit.dmg`** — window shows steps 1–3
+1. Open **`Kenglit.dmg`** (instructions are on the window background)
 2. Drag **Kenglit** → **Applications**
-3. First open: **right-click Kenglit → Open → Open** (see window / **Install Guide.txt**)
-4. Menu bar → **On**
+3. Eject · open app · menu bar **On** (steps on the window)
+4. First open on a new Mac: **right-click → Open → Open** (also on the window)
 
 ### Gatekeeper (new Mac)
 
@@ -42,7 +42,7 @@ Ad-hoc beta — not notarized. Warning is normal.
 
 - **Right-click** Applications → Kenglit → **Open** → **Open**
 - Or Privacy & Security → **Open Anyway**
-- After download, if stuck: `xattr -cr /Applications/Kenglit.app` then right-click Open
+- After download, if stuck: `xattr -dr com.apple.quarantine /Applications/Kenglit.app`
 
 ### From source
 
