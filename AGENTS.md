@@ -33,6 +33,7 @@
 - `make dmg` — local/testing ad-hoc DMG (background-manual; Gatekeeper warning on new Macs)
 - `make release` — Developer ID sign + notarize + staple app and DMG (background-release)
 - DMG assets: `Resources/dmg/background-manual.*`, `background-release.*`, `layout.json`
+- Background DPI must be 72 (1× 760×600) / 144 (2× 1520×1200) → logical 760×600 pt. Run `make dmg-bg-dpi`.
 - Visible root items only: `Kenglit.app`, `Applications` (no Install Guide.txt)
 - Finder DMG icon is a resource fork — re-run `make dmg-icon` after checkout if needed
 - Do not commit `dist/`
@@ -47,6 +48,7 @@
 
     make check
     make icons
+    make dmg-bg-dpi
     make dmg
     make dmg-icon
     make release
