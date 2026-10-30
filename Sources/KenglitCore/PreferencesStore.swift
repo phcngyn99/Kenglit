@@ -7,8 +7,10 @@ public final class PreferencesStore: ObservableObject {
         static let launchAtLogin = "launchAtLogin"
         /// Legacy full list (pre-split). Migrated once into user extras.
         static let watchedLegacy = "watchedBundleIDs"
-        /// User-added only (shown in Settings). Defaults always apply separately.
+        /// User-added apps that are not part of the factory built-in catalog.
         static let userExtras = "userWatchedBundleIDs"
+        /// Built-in apps the user removed from the active list (still in factory defaults).
+        static let excludedBuiltIn = "excludedBuiltInBundleIDs"
     }
 
     private let defaults: UserDefaults
@@ -21,14 +23,25 @@ public final class PreferencesStore: ObservableObject {
         didSet { defaults.set(launchAtLogin, forKey: Key.launchAtLogin) }
     }
 
-    /// User-added EN apps only (Settings list).
+    /// User-added EN apps only (not in factory defaults).
     @Published public private(set) var userWatchedBundleIDs: [String] {
         didSet { defaults.set(userWatchedBundleIDs, forKey: Key.userExtras) }
     }
 
-    /// Effective EN set: built-in defaults ∪ user extras. Used by focus monitor.
+    /// Factory built-ins the user has removed from the active list.
+    @Published public private(set) var excludedBuiltInBundleIDs: [String] {
+        didSet { defaults.set(excludedBuiltInBundleIDs, forKey: Key.excludedBuiltIn) }
+    }
+
+    /// Built-in apps currently active (factory minus exclusions), stable factory order.
+    public var activeBuiltInBundleIDs: [String] {
+        let excluded = Set(excludedBuiltInBundleIDs)
+        return WatchedApps.defaults.filter { !excluded.contains($0) }
+    }
+
+    /// Effective EN set for focus monitor: active built-ins ∪ user extras.
     public var watchedBundleIDs: [String] {
-        WatchedApps.normalized(WatchedApps.defaults + userWatchedBundleIDs)
+        WatchedApps.normalized(activeBuiltInBundleIDs + userWatchedBundleIDs)
     }
 
     public init(defaults: UserDefaults = .standard) {
@@ -43,15 +56,22 @@ public final class PreferencesStore: ObservableObject {
         if let extras = defaults.array(forKey: Key.userExtras) as? [String] {
             self.userWatchedBundleIDs = Self.sanitizeExtras(extras)
         } else if let legacy = defaults.array(forKey: Key.watchedLegacy) as? [String] {
-            // One-shot migration: only keep ids that are NOT built-in defaults.
             let builtin = Set(WatchedApps.defaults)
             let onlyUser = Self.sanitizeExtras(legacy.filter { !builtin.contains($0) })
             self.userWatchedBundleIDs = onlyUser
         } else {
             self.userWatchedBundleIDs = []
         }
+
+        if let excluded = defaults.array(forKey: Key.excludedBuiltIn) as? [String] {
+            self.excludedBuiltInBundleIDs = Self.sanitizeExclusions(excluded)
+        } else {
+            self.excludedBuiltInBundleIDs = []
+        }
+
         // didSet does not run during init — persist explicitly.
         defaults.set(userWatchedBundleIDs, forKey: Key.userExtras)
+        defaults.set(excludedBuiltInBundleIDs, forKey: Key.excludedBuiltIn)
     }
 
     public func setUserWatchedBundleIDs(_ ids: [String]) {
@@ -59,28 +79,63 @@ public final class PreferencesStore: ObservableObject {
         objectWillChange.send()
     }
 
+    public func setExcludedBuiltInBundleIDs(_ ids: [String]) {
+        excludedBuiltInBundleIDs = Self.sanitizeExclusions(ids)
+        objectWillChange.send()
+    }
+
+    /// Add a custom app, or re-include a previously removed built-in.
     public func addWatchedBundleID(_ id: String) {
         let trimmed = id.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !trimmed.isEmpty else { return }
-        // Defaults already covered — no need to store again.
-        if WatchedApps.defaults.contains(trimmed) { return }
+
+        if WatchedApps.defaults.contains(trimmed) {
+            // Re-adding a built-in clears its exclusion (no duplicate storage).
+            if excludedBuiltInBundleIDs.contains(trimmed) {
+                setExcludedBuiltInBundleIDs(excludedBuiltInBundleIDs.filter { $0 != trimmed })
+            }
+            return
+        }
         setUserWatchedBundleIDs(userWatchedBundleIDs + [trimmed])
     }
 
+    /// Remove from active list. Custom apps are dropped; built-ins are excluded.
     public func removeWatchedBundleID(_ id: String) {
-        setUserWatchedBundleIDs(userWatchedBundleIDs.filter { $0 != id })
+        let trimmed = id.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty else { return }
+
+        if WatchedApps.defaults.contains(trimmed) {
+            setExcludedBuiltInBundleIDs(excludedBuiltInBundleIDs + [trimmed])
+            // Also strip if it somehow sat in extras.
+            if userWatchedBundleIDs.contains(trimmed) {
+                setUserWatchedBundleIDs(userWatchedBundleIDs.filter { $0 != trimmed })
+            }
+            return
+        }
+        setUserWatchedBundleIDs(userWatchedBundleIDs.filter { $0 != trimmed })
     }
 
-    /// Clear user extras only. Built-in defaults stay active.
-    public func resetUserExtras() {
+    /// Restore factory application list: clear custom entries and built-in exclusions.
+    /// Does not change isEnabled or launchAtLogin.
+    public func restoreDefaultApplications() {
         setUserWatchedBundleIDs([])
+        setExcludedBuiltInBundleIDs([])
     }
 
-    /// No-op kept for callers; defaults always apply, nothing to merge into storage.
+    /// Clear user extras only (legacy name). Prefer restoreDefaultApplications().
+    public func resetUserExtras() {
+        restoreDefaultApplications()
+    }
+
     public func mergeMissingDefaults() {}
 
     private static func sanitizeExtras(_ ids: [String]) -> [String] {
         let builtin = Set(WatchedApps.defaults)
         return WatchedApps.normalized(ids).filter { !builtin.contains($0) }
+    }
+
+    private static func sanitizeExclusions(_ ids: [String]) -> [String] {
+        let builtin = Set(WatchedApps.defaults)
+        return WatchedApps.normalized(ids).filter { builtin.contains($0) }
     }
 }

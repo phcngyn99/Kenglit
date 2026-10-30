@@ -64,7 +64,7 @@ final class StatusItemController: NSObject, NSMenuDelegate {
     }
 
     private func updateTooltip(enabled: Bool) {
-        statusItem.button?.toolTip = enabled ? "Kenglit ON" : "Kenglit OFF"
+        statusItem.button?.toolTip = enabled ? "Kenglit · On" : "Kenglit · Off"
     }
 
     private func pulseButton(emphasizeOn: Bool) {
@@ -93,7 +93,7 @@ final class StatusItemController: NSObject, NSMenuDelegate {
         let enabled = model.preferences.isEnabled
 
         let enabledItem = NSMenuItem(
-            title: enabled ? "ON" : "OFF",
+            title: enabled ? "On" : "Off",
             action: #selector(toggleEnabled),
             keyEquivalent: ""
         )

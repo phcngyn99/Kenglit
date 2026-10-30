@@ -59,6 +59,7 @@ do {
     Check.expect(store.isEnabled, "default enabled")
     Check.expect(!store.launchAtLogin, "default launchAtLogin false")
     Check.equal(store.userWatchedBundleIDs, [], "user extras empty")
+    Check.equal(store.excludedBuiltInBundleIDs, [], "exclusions empty")
     Check.equal(store.watchedBundleIDs, WatchedApps.defaults, "effective = defaults")
 
     store.isEnabled = false
@@ -68,7 +69,7 @@ do {
     store.addWatchedBundleID("com.example.App")
     Check.expect(store.userWatchedBundleIDs.contains("com.example.App"), "user list has add")
     Check.expect(store.watchedBundleIDs.contains("com.example.App"), "effective has add")
-    // Built-in defaults are not stored as user extras
+
     store.addWatchedBundleID("com.apple.Terminal")
     Check.expect(!store.userWatchedBundleIDs.contains("com.apple.Terminal"), "default not in user list")
     Check.expect(store.watchedBundleIDs.contains("com.apple.Terminal"), "default still effective")
@@ -77,14 +78,36 @@ do {
     Check.expect(!store.userWatchedBundleIDs.contains("com.example.App"), "remove user extra")
     Check.expect(!store.watchedBundleIDs.contains("com.example.App"), "gone from effective")
 
+    // Built-in removal persists as exclusion
+    store.removeWatchedBundleID("com.apple.Terminal")
+    Check.expect(store.excludedBuiltInBundleIDs.contains("com.apple.Terminal"), "builtin excluded")
+    Check.expect(!store.watchedBundleIDs.contains("com.apple.Terminal"), "excluded gone from effective")
+    Check.expect(!store.activeBuiltInBundleIDs.contains("com.apple.Terminal"), "not in active builtin")
+
+    let reloaded2 = PreferencesStore(defaults: defaults)
+    Check.expect(reloaded2.excludedBuiltInBundleIDs.contains("com.apple.Terminal"), "exclusion persists")
+    Check.expect(!reloaded2.watchedBundleIDs.contains("com.apple.Terminal"), "persisted exclusion effective")
+
+    // Re-add restores membership without duplicate
+    store.addWatchedBundleID("com.apple.Terminal")
+    Check.expect(!store.excludedBuiltInBundleIDs.contains("com.apple.Terminal"), "re-add clears exclusion")
+    Check.expect(store.watchedBundleIDs.contains("com.apple.Terminal"), "re-add effective")
+
     store.setUserWatchedBundleIDs([" com.z ", "com.a", "com.a", "com.apple.Terminal"])
     Check.equal(store.userWatchedBundleIDs, ["com.a", "com.z"], "extras sanitize+dedupe, drop defaults")
     Check.expect(store.watchedBundleIDs.contains("com.a"), "effective has user a")
-    Check.expect(store.watchedBundleIDs.contains("com.apple.Terminal"), "effective keeps default")
 
-    store.resetUserExtras()
-    Check.equal(store.userWatchedBundleIDs, [], "reset clears user only")
-    Check.equal(store.watchedBundleIDs, WatchedApps.defaults, "reset keeps defaults")
+    store.isEnabled = true
+    store.launchAtLogin = true
+    store.removeWatchedBundleID("com.apple.Terminal")
+    store.addWatchedBundleID("com.example.Other")
+    store.restoreDefaultApplications()
+    Check.equal(store.userWatchedBundleIDs, [], "restore clears custom")
+    Check.equal(store.excludedBuiltInBundleIDs, [], "restore clears exclusions")
+    Check.equal(store.watchedBundleIDs, WatchedApps.defaults, "restore full factory list")
+    Check.expect(store.isEnabled, "restore keeps enabled")
+    Check.expect(store.launchAtLogin, "restore keeps launchAtLogin")
+
     defaults.removePersistentDomain(forName: suite)
 }
 

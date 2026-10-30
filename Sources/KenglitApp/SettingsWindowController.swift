@@ -1,78 +1,115 @@
 import AppKit
+import QuartzCore
 import UniformTypeIdentifiers
 import KenglitCore
 
-/// Shared row geometry so icons + chevrons share one left edge.
-private enum SettingsListLayout {
-    static let leading: CGFloat = 12
-    static let chevron: CGFloat = 14
-    static let icon: CGFloat = 28
-    static let iconGap: CGFloat = 10
-    static let trailing: CGFloat = 12
-    static let appRowHeight: CGFloat = 40
-    static let headerRowHeight: CGFloat = 30
+private enum SettingsUI {
+    static let margin: CGFloat = 16
+    static let sectionGap: CGFloat = 12
+    static let rowH: CGFloat = 34
+    static let headerH: CGFloat = 24
+    static let icon: CGFloat = 24
+    static let iconPad: CGFloat = 10
+    static let trailing: CGFloat = 10
+    static let controlH: CGFloat = 24
+    static let windowW: CGFloat = 440
+    static let windowH: CGFloat = 480
+    static let minW: CGFloat = 380
+    static let minH: CGFloat = 360
 }
 
 @MainActor
 final class SettingsWindowController: NSWindowController {
     private let preferences: PreferencesStore
+    private var enabledSwitch: NSSwitch!
+    private var loginSwitch: NSSwitch!
+    private var statusLabel: NSTextField!
+    private var searchField: NSSearchField!
     private var table: NSTableView!
-    private var enabledButton: NSButton!
-    private var loginButton: NSButton!
-    private var errorLabel: NSTextField!
+    private var displayRows: [Row] = []
+    private var customExpanded = true
+    private var builtInExpanded = true
+    private var filter = ""
+    private var iconCache: [String: NSImage] = [:]
     var onClose: (() -> Void)?
-    /// Snapshot rows so scroll/recycle never reads a moving target.
-    private var displayRows: [SettingsRow] = []
-    /// Yours expanded by default; Default collapsed.
-    private var yoursExpanded = true
-    private var defaultExpanded = false
 
-    private enum SectionID {
-        case yours
-        case defaults
-    }
-
-    private enum SettingsRow {
-        case header(section: SectionID, title: String, subtitle: String, expanded: Bool)
-        case app(bundleID: String, isUser: Bool)
+    private enum Section { case custom, builtIn }
+    private enum Row {
+        case header(Section, title: String, expanded: Bool)
+        case app(bundleID: String, removable: Bool)
+        case empty(String)
     }
 
     init(preferences: PreferencesStore) {
         self.preferences = preferences
         let window = NSWindow(
-            contentRect: NSRect(x: 0, y: 0, width: 480, height: 520),
+            contentRect: NSRect(x: 0, y: 0, width: SettingsUI.windowW, height: SettingsUI.windowH),
             styleMask: [.titled, .closable, .miniaturizable, .resizable],
             backing: .buffered,
             defer: false
         )
         window.title = "Kenglit"
-        window.minSize = NSSize(width: 420, height: 360)
+        window.minSize = NSSize(width: SettingsUI.minW, height: SettingsUI.minH)
         window.center()
         super.init(window: window)
         window.contentView = buildContent()
         window.delegate = self
-        reloadTable()
+        reload()
     }
 
     @available(*, unavailable)
     required init?(coder: NSCoder) { fatalError() }
 
     private func buildContent() -> NSView {
-        let root = NSView(frame: NSRect(x: 0, y: 0, width: 480, height: 520))
+        let root = NSView(frame: NSRect(x: 0, y: 0, width: SettingsUI.windowW, height: SettingsUI.windowH))
+        let m = SettingsUI.margin
 
-        enabledButton = NSButton(checkboxWithTitle: "Enable", target: self, action: #selector(toggleEnabled))
-        enabledButton.translatesAutoresizingMaskIntoConstraints = false
-        root.addSubview(enabledButton)
+        let generalTitle = sectionLabel("General")
+        root.addSubview(generalTitle)
 
-        loginButton = NSButton(checkboxWithTitle: "Login start", target: self, action: #selector(toggleLogin))
-        loginButton.translatesAutoresizingMaskIntoConstraints = false
-        root.addSubview(loginButton)
+        let (enSw, enRow) = prefRow(
+            title: "Enable Kenglit",
+            action: #selector(toggleEnabled)
+        )
+        enabledSwitch = enSw
+        root.addSubview(enRow)
 
-        errorLabel = NSTextField(labelWithString: "")
-        errorLabel.textColor = .secondaryLabelColor
-        errorLabel.font = .systemFont(ofSize: 11)
-        errorLabel.translatesAutoresizingMaskIntoConstraints = false
-        root.addSubview(errorLabel)
+        let (loginSw, loginRow) = prefRow(
+            title: "Launch at Login",
+            action: #selector(toggleLogin)
+        )
+        loginSwitch = loginSw
+        root.addSubview(loginRow)
+
+        statusLabel = NSTextField(labelWithString: "")
+        statusLabel.font = .systemFont(ofSize: 11)
+        statusLabel.textColor = .secondaryLabelColor
+        statusLabel.translatesAutoresizingMaskIntoConstraints = false
+        root.addSubview(statusLabel)
+
+        let aboutBtn = iconButton("info.circle", tip: "About keyboard switching", action: #selector(showAbout))
+        root.addSubview(aboutBtn)
+
+        let divider = NSBox()
+        divider.boxType = .separator
+        divider.translatesAutoresizingMaskIntoConstraints = false
+        root.addSubview(divider)
+
+        let appsTitle = sectionLabel("Applications")
+        root.addSubview(appsTitle)
+
+        let addBtn = textButton("Add", action: #selector(addApplications))
+        addBtn.toolTip = "Choose apps that should use English"
+        root.addSubview(addBtn)
+
+        searchField = NSSearchField()
+        searchField.placeholderString = "Search"
+        searchField.translatesAutoresizingMaskIntoConstraints = false
+        searchField.target = self
+        searchField.action = #selector(searchChanged)
+        searchField.sendsSearchStringImmediately = true
+        searchField.delegate = self
+        root.addSubview(searchField)
 
         let scroll = NSScrollView()
         scroll.translatesAutoresizingMaskIntoConstraints = false
@@ -81,196 +118,251 @@ final class SettingsWindowController: NSWindowController {
         scroll.borderType = .bezelBorder
         scroll.drawsBackground = true
         scroll.backgroundColor = .controlBackgroundColor
+        scroll.wantsLayer = true
+        scroll.layer?.cornerRadius = 6
 
         table = NSTableView()
         table.headerView = nil
-        table.rowHeight = 40
-        table.allowsMultipleSelection = true
-        table.usesAlternatingRowBackgroundColors = true
+        table.rowHeight = SettingsUI.rowH
+        table.allowsMultipleSelection = false
+        table.usesAlternatingRowBackgroundColors = false
+        table.backgroundColor = .clear
         table.selectionHighlightStyle = .regular
         table.gridStyleMask = []
-        table.intercellSpacing = NSSize(width: 0, height: 2)
-        if #available(macOS 11.0, *) {
-            table.style = .fullWidth
-        }
-
-        let col = NSTableColumn(identifier: NSUserInterfaceItemIdentifier("app"))
-        col.title = "EN apps"
+        table.intercellSpacing = .zero
+        if #available(macOS 11.0, *) { table.style = .plain }
+        let col = NSTableColumn(identifier: .init("app"))
         col.resizingMask = .autoresizingMask
-        col.width = 440
-        col.minWidth = 200
+        col.width = 400
         table.addTableColumn(col)
         table.dataSource = self
         table.delegate = self
-        table.doubleAction = nil
         scroll.documentView = table
         root.addSubview(scroll)
 
-        let pickApps = NSButton(title: "Add Apps…", target: self, action: #selector(pickFromApplications))
-        pickApps.translatesAutoresizingMaskIntoConstraints = false
-        pickApps.bezelStyle = .rounded
-        root.addSubview(pickApps)
-
-        let addFront = NSButton(title: "Add front", target: self, action: #selector(addFrontmost))
-        addFront.translatesAutoresizingMaskIntoConstraints = false
-        addFront.bezelStyle = .rounded
-        root.addSubview(addFront)
-
-        let remove = NSButton(title: "Del", target: self, action: #selector(removeSelected))
-        remove.translatesAutoresizingMaskIntoConstraints = false
-        remove.bezelStyle = .rounded
-        root.addSubview(remove)
-
-        let reset = NSButton(title: "Reset", target: self, action: #selector(resetDefaults))
-        reset.translatesAutoresizingMaskIntoConstraints = false
-        reset.bezelStyle = .rounded
-        root.addSubview(reset)
+        let restore = textButton("Restore Default", action: #selector(restoreDefaults))
+        restore.toolTip = "Restore the factory application list"
+        restore.contentTintColor = .secondaryLabelColor
+        root.addSubview(restore)
 
         NSLayoutConstraint.activate([
-            enabledButton.leadingAnchor.constraint(equalTo: root.leadingAnchor, constant: 16),
-            enabledButton.topAnchor.constraint(equalTo: root.topAnchor, constant: 14),
+            generalTitle.leadingAnchor.constraint(equalTo: root.leadingAnchor, constant: m),
+            generalTitle.topAnchor.constraint(equalTo: root.topAnchor, constant: m),
+            aboutBtn.trailingAnchor.constraint(equalTo: root.trailingAnchor, constant: -m),
+            aboutBtn.centerYAnchor.constraint(equalTo: generalTitle.centerYAnchor),
+            aboutBtn.widthAnchor.constraint(equalToConstant: 20),
+            aboutBtn.heightAnchor.constraint(equalToConstant: 20),
 
-            loginButton.leadingAnchor.constraint(equalTo: enabledButton.trailingAnchor, constant: 16),
-            loginButton.centerYAnchor.constraint(equalTo: enabledButton.centerYAnchor),
+            enRow.leadingAnchor.constraint(equalTo: root.leadingAnchor, constant: m),
+            enRow.trailingAnchor.constraint(equalTo: root.trailingAnchor, constant: -m),
+            enRow.topAnchor.constraint(equalTo: generalTitle.bottomAnchor, constant: 8),
+            enRow.heightAnchor.constraint(equalToConstant: 28),
 
-            errorLabel.leadingAnchor.constraint(equalTo: loginButton.trailingAnchor, constant: 12),
-            errorLabel.centerYAnchor.constraint(equalTo: enabledButton.centerYAnchor),
-            errorLabel.trailingAnchor.constraint(lessThanOrEqualTo: root.trailingAnchor, constant: -16),
+            loginRow.leadingAnchor.constraint(equalTo: enRow.leadingAnchor),
+            loginRow.trailingAnchor.constraint(equalTo: enRow.trailingAnchor),
+            loginRow.topAnchor.constraint(equalTo: enRow.bottomAnchor, constant: 4),
+            loginRow.heightAnchor.constraint(equalToConstant: 28),
 
-            scroll.leadingAnchor.constraint(equalTo: root.leadingAnchor, constant: 16),
-            scroll.trailingAnchor.constraint(equalTo: root.trailingAnchor, constant: -16),
-            scroll.topAnchor.constraint(equalTo: enabledButton.bottomAnchor, constant: 12),
-            scroll.bottomAnchor.constraint(equalTo: pickApps.topAnchor, constant: -12),
+            statusLabel.leadingAnchor.constraint(equalTo: root.leadingAnchor, constant: m),
+            statusLabel.topAnchor.constraint(equalTo: loginRow.bottomAnchor, constant: 4),
 
-            pickApps.leadingAnchor.constraint(equalTo: root.leadingAnchor, constant: 16),
-            pickApps.bottomAnchor.constraint(equalTo: root.bottomAnchor, constant: -14),
+            divider.leadingAnchor.constraint(equalTo: root.leadingAnchor, constant: m),
+            divider.trailingAnchor.constraint(equalTo: root.trailingAnchor, constant: -m),
+            divider.topAnchor.constraint(equalTo: loginRow.bottomAnchor, constant: SettingsUI.sectionGap),
 
-            addFront.leadingAnchor.constraint(equalTo: pickApps.trailingAnchor, constant: 8),
-            addFront.centerYAnchor.constraint(equalTo: pickApps.centerYAnchor),
+            appsTitle.leadingAnchor.constraint(equalTo: root.leadingAnchor, constant: m),
+            appsTitle.topAnchor.constraint(equalTo: divider.bottomAnchor, constant: SettingsUI.sectionGap),
+            addBtn.trailingAnchor.constraint(equalTo: root.trailingAnchor, constant: -m),
+            addBtn.centerYAnchor.constraint(equalTo: appsTitle.centerYAnchor),
 
-            remove.leadingAnchor.constraint(equalTo: addFront.trailingAnchor, constant: 8),
-            remove.centerYAnchor.constraint(equalTo: pickApps.centerYAnchor),
+            searchField.leadingAnchor.constraint(equalTo: root.leadingAnchor, constant: m),
+            searchField.trailingAnchor.constraint(equalTo: root.trailingAnchor, constant: -m),
+            searchField.topAnchor.constraint(equalTo: appsTitle.bottomAnchor, constant: 8),
 
-            reset.trailingAnchor.constraint(equalTo: root.trailingAnchor, constant: -16),
-            reset.centerYAnchor.constraint(equalTo: pickApps.centerYAnchor),
+            scroll.leadingAnchor.constraint(equalTo: root.leadingAnchor, constant: m),
+            scroll.trailingAnchor.constraint(equalTo: root.trailingAnchor, constant: -m),
+            scroll.topAnchor.constraint(equalTo: searchField.bottomAnchor, constant: 8),
+            scroll.bottomAnchor.constraint(equalTo: restore.topAnchor, constant: -12),
+
+            restore.trailingAnchor.constraint(equalTo: root.trailingAnchor, constant: -m),
+            restore.bottomAnchor.constraint(equalTo: root.bottomAnchor, constant: -m),
+            restore.heightAnchor.constraint(equalToConstant: SettingsUI.controlH),
         ])
-
         return root
     }
 
-    private func reloadTable() {
-        let user = preferences.userWatchedBundleIDs
-        let builtin = WatchedApps.defaults
-        var next: [SettingsRow] = []
-
-        // Yours first (editable)
-        next.append(.header(
-            section: .yours,
-            title: "Yours",
-            subtitle: user.isEmpty ? "none yet" : "\(user.count)",
-            expanded: yoursExpanded
-        ))
-        if yoursExpanded {
-            for bid in user {
-                next.append(.app(bundleID: bid, isUser: true))
-            }
-        }
-
-        next.append(.header(
-            section: .defaults,
-            title: "Default",
-            subtitle: "\(builtin.count) · always EN",
-            expanded: defaultExpanded
-        ))
-        if defaultExpanded {
-            for bid in builtin {
-                next.append(.app(bundleID: bid, isUser: false))
-            }
-        }
-
-        displayRows = next
-        table.reloadData()
-        enabledButton.state = preferences.isEnabled ? .on : .off
-        loginButton.state = preferences.launchAtLogin ? .on : .off
+    private func sectionLabel(_ text: String) -> NSTextField {
+        let t = NSTextField(labelWithString: text)
+        t.font = .systemFont(ofSize: 13, weight: .semibold)
+        t.textColor = .labelColor
+        t.translatesAutoresizingMaskIntoConstraints = false
+        return t
     }
 
-    private func toggleSection(_ section: SectionID) {
-        switch section {
-        case .yours:
-            yoursExpanded.toggle()
-        case .defaults:
-            defaultExpanded.toggle()
+    private func prefRow(title: String, action: Selector) -> (NSSwitch, NSView) {
+        let row = NSView()
+        row.translatesAutoresizingMaskIntoConstraints = false
+
+        let titleL = NSTextField(labelWithString: title)
+        titleL.font = .systemFont(ofSize: 13)
+        titleL.textColor = .labelColor
+        titleL.translatesAutoresizingMaskIntoConstraints = false
+
+        let sw = NSSwitch()
+        sw.target = self
+        sw.action = action
+        sw.controlSize = .regular
+        sw.translatesAutoresizingMaskIntoConstraints = false
+        sw.setContentHuggingPriority(.required, for: .horizontal)
+
+        row.addSubview(titleL)
+        row.addSubview(sw)
+
+        NSLayoutConstraint.activate([
+            titleL.leadingAnchor.constraint(equalTo: row.leadingAnchor),
+            titleL.centerYAnchor.constraint(equalTo: row.centerYAnchor),
+            titleL.trailingAnchor.constraint(lessThanOrEqualTo: sw.leadingAnchor, constant: -12),
+
+            sw.trailingAnchor.constraint(equalTo: row.trailingAnchor),
+            sw.centerYAnchor.constraint(equalTo: row.centerYAnchor),
+        ])
+        return (sw, row)
+    }
+
+    private func textButton(_ title: String, action: Selector) -> NSButton {
+        let b = NSButton(title: title, target: self, action: action)
+        b.bezelStyle = .inline
+        b.isBordered = false
+        b.font = .systemFont(ofSize: 12, weight: .medium)
+        b.contentTintColor = .controlAccentColor
+        b.translatesAutoresizingMaskIntoConstraints = false
+        b.setContentHuggingPriority(.required, for: .horizontal)
+        return b
+    }
+
+    private func iconButton(_ symbol: String, tip: String, action: Selector) -> NSButton {
+        let b = NSButton(frame: .zero)
+        b.bezelStyle = .inline
+        b.isBordered = false
+        b.imagePosition = .imageOnly
+        if let base = NSImage(systemSymbolName: symbol, accessibilityDescription: tip) {
+            b.image = base.withSymbolConfiguration(.init(pointSize: 13, weight: .regular)) ?? base
         }
-        reloadTable()
+        b.contentTintColor = .tertiaryLabelColor
+        b.target = self
+        b.action = action
+        b.toolTip = tip
+        b.setAccessibilityLabel(tip)
+        b.translatesAutoresizingMaskIntoConstraints = false
+        return b
+    }
+
+    private func reload() {
+        enabledSwitch.state = preferences.isEnabled ? .on : .off
+        loginSwitch.state = preferences.launchAtLogin ? .on : .off
+
+        let q = filter.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+        func match(_ bid: String) -> Bool {
+            guard !q.isEmpty else { return true }
+            return Self.friendlyName(for: bid).lowercased().contains(q)
+                || bid.lowercased().contains(q)
+        }
+
+        let custom = preferences.userWatchedBundleIDs.filter(match)
+        let builtIn = preferences.activeBuiltInBundleIDs.filter(match)
+        var rows: [Row] = []
+
+        rows.append(.header(.custom, title: "User Apps", expanded: customExpanded))
+        if customExpanded {
+            if custom.isEmpty {
+                rows.append(.empty(q.isEmpty ? "No user apps added." : "No matching applications."))
+            } else {
+                for bid in custom { rows.append(.app(bundleID: bid, removable: true)) }
+            }
+        }
+
+        rows.append(.header(.builtIn, title: "Built-in Apps", expanded: builtInExpanded))
+        if builtInExpanded {
+            if builtIn.isEmpty {
+                rows.append(.empty(q.isEmpty ? "No built-in apps." : "No matching applications."))
+            } else {
+                for bid in builtIn { rows.append(.app(bundleID: bid, removable: true)) }
+            }
+        }
+
+        displayRows = rows
+        table.reloadData()
     }
 
     @objc private func toggleEnabled() {
-        preferences.isEnabled = (enabledButton.state == .on)
+        preferences.isEnabled = (enabledSwitch.state == .on)
         NotificationCenter.default.post(name: .kenglitPrefsChanged, object: nil)
+        statusLabel.stringValue = ""
     }
 
     @objc private func toggleLogin() {
-        let want = loginButton.state == .on
+        let want = loginSwitch.state == .on
         if LaunchAtLogin.setEnabled(want) {
             preferences.launchAtLogin = want
-            errorLabel.stringValue = ""
+            statusLabel.stringValue = ""
         } else {
-            errorLabel.textColor = .systemRed
-            errorLabel.stringValue = "Login fail"
-            loginButton.state = preferences.launchAtLogin ? .on : .off
+            statusLabel.textColor = .systemRed
+            statusLabel.stringValue = "Couldn’t update login item"
+            loginSwitch.state = preferences.launchAtLogin ? .on : .off
         }
     }
 
-    @objc private func removeSelected() {
-        let selected = table.selectedRowIndexes
-        guard !selected.isEmpty else { return }
-        let removeIDs: [String] = selected.compactMap { idx in
-            guard idx >= 0, idx < displayRows.count else { return nil }
-            if case let .app(bid, isUser) = displayRows[idx], isUser {
-                return bid
-            }
-            return nil
+    @objc private func searchChanged() {
+        filter = searchField.stringValue
+        expandSectionsMatchingSearch()
+        reload()
+    }
+
+    /// Expand sections that contain the current query so Enter / typing reveals hits.
+    private func expandSectionsMatchingSearch() {
+        let q = filter.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+        guard !q.isEmpty else { return }
+        func match(_ bid: String) -> Bool {
+            Self.friendlyName(for: bid).lowercased().contains(q) || bid.lowercased().contains(q)
         }
-        guard !removeIDs.isEmpty else {
-            errorLabel.textColor = .secondaryLabelColor
-            errorLabel.stringValue = "Default locked"
-            return
+        if preferences.userWatchedBundleIDs.contains(where: match) {
+            customExpanded = true
         }
-        let removeSet = Set(removeIDs)
-        let next = preferences.userWatchedBundleIDs.filter { !removeSet.contains($0) }
-        preferences.setUserWatchedBundleIDs(next)
-        reloadTable()
+        if preferences.activeBuiltInBundleIDs.contains(where: match) {
+            builtInExpanded = true
+        }
+    }
+
+    @objc private func showAbout(_ sender: Any?) {
+        let anchor = (sender as? NSView) ?? window?.contentView
+        guard let anchor else { return }
+        HelpPopover.shared.show(
+            relativeTo: anchor.bounds,
+            of: anchor,
+            text: """
+            Kenglit switches the keyboard layout based on the frontmost app.
+
+            User Apps
+            Apps you add. Remove with −, or Restore Default to clear the list.
+
+            Built-in Apps
+            Terminals, editors, and IDEs included with Kenglit. Remove with − if you prefer.
+
+            Other apps
+            Switch to Vietnamese when focus leaves a listed app.
+            """
+        )
+    }
+
+    private func removeConfiguredApp(_ bid: String) {
+        preferences.removeWatchedBundleID(bid)
+        reload()
         NotificationCenter.default.post(name: .kenglitPrefsChanged, object: nil)
-        errorLabel.textColor = .secondaryLabelColor
-        errorLabel.stringValue = "−\(removeIDs.count)"
     }
 
-    @objc private func addFrontmost() {
-        guard let app = NSWorkspace.shared.frontmostApplication,
-              let id = app.bundleIdentifier,
-              id != "dev.finn.kenglit" else { return }
-        if WatchedApps.defaults.contains(id) {
-            reloadTable()
-            scrollToBundleID(id)
-            errorLabel.textColor = .secondaryLabelColor
-            errorLabel.stringValue = "Default"
-            return
-        }
-        let before = Set(preferences.userWatchedBundleIDs)
-        preferences.addWatchedBundleID(id)
-        if let name = app.localizedName, !name.isEmpty {
-            WatchedAppsUserNames.set(name, for: id)
-        }
-        reloadTable()
-        scrollToBundleID(id)
-        NotificationCenter.default.post(name: .kenglitPrefsChanged, object: nil)
-        errorLabel.textColor = .secondaryLabelColor
-        errorLabel.stringValue = before.contains(id) ? "None new" : "+1"
-    }
-
-    @objc private func pickFromApplications() {
+    @objc private func addApplications() {
         let panel = NSOpenPanel()
-        panel.title = "Add Apps"
+        panel.title = "Choose Applications"
         panel.prompt = "Add"
         panel.canChooseFiles = true
         panel.canChooseDirectories = false
@@ -282,161 +374,154 @@ final class SettingsWindowController: NSWindowController {
         } else {
             panel.allowedFileTypes = ["app"]
         }
-        // Icon/column browser like Finder
-        panel.message = ""
 
         NSApp.setActivationPolicy(.regular)
         NSApp.activate(ignoringOtherApps: true)
         window?.makeKeyAndOrderFront(nil)
 
-        // runModal always shows for accessory apps; beginSheet can hang.
         let result = panel.runModal()
         defer {
-            // Stay regular while Settings open
             window?.makeKeyAndOrderFront(nil)
             NSApp.activate(ignoringOtherApps: true)
         }
         guard result == .OK else { return }
 
-        var added = 0
         var failed = 0
         for url in panel.urls {
-            guard let bid = Self.bundleID(fromAppURL: url) else {
+            guard let bid = Self.bundleID(fromAppURL: url), bid != "dev.finn.kenglit" else {
                 failed += 1
                 continue
             }
-            if bid == "dev.finn.kenglit" { continue }
-            let before = Set(preferences.userWatchedBundleIDs)
             preferences.addWatchedBundleID(bid)
             let name = FileManager.default.displayName(atPath: url.path)
                 .replacingOccurrences(of: ".app", with: "")
-            if !name.isEmpty {
-                WatchedAppsUserNames.set(name, for: bid)
-            }
-            if !before.contains(bid) { added += 1 }
+            if !name.isEmpty { WatchedAppsUserNames.set(name, for: bid) }
         }
-
-        reloadTable()
+        reload()
         NotificationCenter.default.post(name: .kenglitPrefsChanged, object: nil)
-
-        if added > 0 {
-            errorLabel.textColor = .secondaryLabelColor
-            errorLabel.stringValue = "+\(added)"
-        } else if failed > 0 {
-            errorLabel.textColor = .systemRed
-            errorLabel.stringValue = "Read fail"
+        if failed > 0 {
+            statusLabel.textColor = .systemRed
+            statusLabel.stringValue = "Couldn’t read application"
         } else {
-            errorLabel.textColor = .secondaryLabelColor
-            errorLabel.stringValue = "None new"
+            statusLabel.stringValue = ""
         }
+    }
+
+    @objc private func restoreDefaults() {
+        let alert = NSAlert()
+        alert.messageText = "Restore default application list?"
+        alert.informativeText = "This restores built-in applications and removes custom entries."
+        alert.alertStyle = .warning
+        alert.addButton(withTitle: "Restore Default")
+        alert.addButton(withTitle: "Cancel")
+        guard alert.runModal() == .alertFirstButtonReturn else { return }
+        preferences.restoreDefaultApplications()
+        filter = ""
+        searchField.stringValue = ""
+        customExpanded = true
+        builtInExpanded = true
+        reload()
+        NotificationCenter.default.post(name: .kenglitPrefsChanged, object: nil)
+        statusLabel.stringValue = ""
+    }
+
+    private func toggleSection(_ section: Section) {
+        switch section {
+        case .custom: customExpanded.toggle()
+        case .builtIn: builtInExpanded.toggle()
+        }
+        reload()
     }
 
     private static func bundleID(fromAppURL url: URL) -> String? {
-        // Prefer Info.plist — Bundle(url:) often nil for arbitrary .app picks.
         let infoURL = url.appendingPathComponent("Contents/Info.plist")
         if let dict = NSDictionary(contentsOf: infoURL) as? [String: Any],
-           let bid = dict["CFBundleIdentifier"] as? String,
-           !bid.isEmpty {
+           let bid = dict["CFBundleIdentifier"] as? String, !bid.isEmpty {
             return bid
         }
-        if let bid = Bundle(url: url)?.bundleIdentifier, !bid.isEmpty {
-            return bid
-        }
-        return nil
-    }
-
-    @objc private func resetDefaults() {
-        preferences.resetUserExtras()
-        reloadTable()
-        NotificationCenter.default.post(name: .kenglitPrefsChanged, object: nil)
-        errorLabel.textColor = .secondaryLabelColor
-        errorLabel.stringValue = "Cleared"
-    }
-
-    private func scrollToBundleID(_ id: String) {
-        if let idx = displayRows.firstIndex(where: {
-            if case let .app(bid, _) = $0 { return bid == id }
-            return false
-        }) {
-            table.scrollRowToVisible(idx)
-            table.selectRowIndexes(IndexSet(integer: idx), byExtendingSelection: false)
-        }
-    }
-
-    // MARK: - Bundle helpers
-
-    private static func bundleIdentifier(forAppURL url: URL) -> String? {
-        let appURL = normalizeAppURL(url)
-        if let id = Bundle(url: appURL)?.bundleIdentifier, !id.isEmpty {
-            return id
-        }
-        let info = appURL.appendingPathComponent("Contents/Info.plist")
-        if let dict = NSDictionary(contentsOf: info) as? [String: Any],
-           let id = dict["CFBundleIdentifier"] as? String,
-           !id.isEmpty {
-            return id
-        }
-        let cfURL = appURL as CFURL
-        if let cfBundle = CFBundleCreate(kCFAllocatorDefault, cfURL),
-           let cfID = CFBundleGetIdentifier(cfBundle) as String?,
-           !cfID.isEmpty {
-            return cfID
-        }
-        return nil
-    }
-
-    private static func displayName(forAppURL url: URL) -> String? {
-        let appURL = normalizeAppURL(url)
-        let info = appURL.appendingPathComponent("Contents/Info.plist")
-        if let dict = NSDictionary(contentsOf: info) as? [String: Any] {
-            if let name = dict["CFBundleDisplayName"] as? String, !name.isEmpty { return name }
-            if let name = dict["CFBundleName"] as? String, !name.isEmpty { return name }
-        }
-        return appURL.deletingPathExtension().lastPathComponent
-    }
-
-    private static func normalizeAppURL(_ url: URL) -> URL {
-        var u = url.resolvingSymlinksInPath()
-        while u.pathExtension.lowercased() != "app", u.path != "/", !u.path.isEmpty {
-            let parent = u.deletingLastPathComponent()
-            if parent.path == u.path { break }
-            u = parent
-        }
-        return u
+        return Bundle(url: url)?.bundleIdentifier
     }
 
     private static func friendlyName(for bundleID: String) -> String {
         let mapped = WatchedAppsUserNames.displayName(for: bundleID)
         if mapped != bundleID { return mapped }
         if let url = NSWorkspace.shared.urlForApplication(withBundleIdentifier: bundleID) {
-            if let name = displayName(forAppURL: url), !name.isEmpty {
-                WatchedAppsUserNames.set(name, for: bundleID)
-                return name
+            let info = url.appendingPathComponent("Contents/Info.plist")
+            if let dict = NSDictionary(contentsOf: info) as? [String: Any] {
+                if let n = dict["CFBundleDisplayName"] as? String, !n.isEmpty {
+                    WatchedAppsUserNames.set(n, for: bundleID); return n
+                }
+                if let n = dict["CFBundleName"] as? String, !n.isEmpty {
+                    WatchedAppsUserNames.set(n, for: bundleID); return n
+                }
             }
             return url.deletingPathExtension().lastPathComponent
         }
         return bundleID
     }
 
-    private static func appIcon(for bundleID: String) -> NSImage {
-        let point = NSSize(width: 28, height: 28)
-        let source: NSImage
-        if let url = NSWorkspace.shared.urlForApplication(withBundleIdentifier: bundleID) {
-            source = NSWorkspace.shared.icon(forFile: url.path)
-        } else if let generic = NSImage(systemSymbolName: "app.fill", accessibilityDescription: nil) {
-            source = generic
-        } else {
-            return NSImage(size: point)
+    private func cachedIcon(for bid: String) -> NSImage {
+        if let hit = iconCache[bid] { return hit }
+        let img = Self.renderIcon(for: bid)
+        iconCache[bid] = img
+        return img
+    }
+
+    private static func renderIcon(for bundleID: String) -> NSImage {
+        let point = NSSize(width: SettingsUI.icon, height: SettingsUI.icon)
+
+        if let url = NSWorkspace.shared.urlForApplication(withBundleIdentifier: bundleID),
+           FileManager.default.fileExists(atPath: url.path) {
+            let source = NSWorkspace.shared.icon(forFile: url.path)
+            let rendered = rasterize(source, to: point)
+            // Real apps have rich icons; blank-ish placeholders fail the variance check.
+            if iconLooksReal(rendered) {
+                return rendered
+            }
         }
 
-        // Draw into a fixed-size bitmap so NSImageView always has real pixels
-        // (mutating icon.size alone is unreliable across AppKit versions).
-        let scale = NSScreen.main?.backingScaleFactor ?? 2.0
-        let px = NSSize(width: point.width * scale, height: point.height * scale)
+        return genericAppIcon(size: point)
+    }
+
+    /// True when icon has enough non-flat content to look like a real app mark.
+    private static func iconLooksReal(_ image: NSImage) -> Bool {
+        guard let tiff = image.tiffRepresentation,
+              let rep = NSBitmapImageRep(data: tiff),
+              let data = rep.bitmapData else { return false }
+        let w = rep.pixelsWide
+        let h = rep.pixelsHigh
+        guard w > 0, h > 0 else { return false }
+        let spp = max(rep.samplesPerPixel, 1)
+        var opaque = 0
+        var samples: [UInt8] = []
+        samples.reserveCapacity(64)
+        let stepX = max(w / 8, 1)
+        let stepY = max(h / 8, 1)
+        for y in stride(from: 0, to: h, by: stepY) {
+            for x in stride(from: 0, to: w, by: stepX) {
+                let i = (y * rep.bytesPerRow) + (x * spp)
+                let a = spp >= 4 ? Int(data[i + 3]) : 255
+                if a < 24 { continue }
+                opaque += 1
+                samples.append(data[i]) // R approx
+            }
+        }
+        guard opaque >= 6, samples.count >= 4 else { return false }
+        let minV = samples.min() ?? 0
+        let maxV = samples.max() ?? 0
+        // Flat gray workspace placeholders usually have almost no variance.
+        return Int(maxV) - Int(minV) >= 18
+    }
+
+    /// Distinct generic application mark — never an empty/black/gray square.
+    private static func genericAppIcon(size point: NSSize) -> NSImage {
+        let scale = NSScreen.main?.backingScaleFactor ?? 2
+        let pxW = max(Int(point.width * scale), 1)
+        let pxH = max(Int(point.height * scale), 1)
         let rep = NSBitmapImageRep(
             bitmapDataPlanes: nil,
-            pixelsWide: Int(px.width),
-            pixelsHigh: Int(px.height),
+            pixelsWide: pxW,
+            pixelsHigh: pxH,
             bitsPerSample: 8,
             samplesPerPixel: 4,
             hasAlpha: true,
@@ -446,261 +531,378 @@ final class SettingsWindowController: NSWindowController {
             bitsPerPixel: 0
         )!
         rep.size = point
-
         NSGraphicsContext.saveGraphicsState()
         if let ctx = NSGraphicsContext(bitmapImageRep: rep) {
             NSGraphicsContext.current = ctx
-            let dst = NSRect(origin: .zero, size: point)
-            source.draw(
-                in: dst,
-                from: NSRect(origin: .zero, size: source.size),
-                operation: .sourceOver,
-                fraction: 1.0,
-                respectFlipped: false,
-                hints: [.interpolation: NSNumber(value: NSImageInterpolation.high.rawValue)]
-            )
+            ctx.cgContext.scaleBy(x: scale, y: scale)
+            ctx.imageInterpolation = .high
+
+            let bounds = NSRect(origin: .zero, size: point)
+            NSColor.clear.setFill()
+            bounds.fill()
+
+            // Transparent canvas + monochrome SF Symbol only (no plate square).
+            if let base = NSImage(systemSymbolName: "app.dashed", accessibilityDescription: nil)
+                ?? NSImage(systemSymbolName: "app", accessibilityDescription: nil)
+                ?? NSImage(systemSymbolName: "app.fill", accessibilityDescription: nil) {
+                let conf = NSImage.SymbolConfiguration(pointSize: point.width * 0.78, weight: .regular)
+                    .applying(NSImage.SymbolConfiguration(paletteColors: [.tertiaryLabelColor]))
+                let glyph = base.withSymbolConfiguration(conf) ?? base
+                glyph.isTemplate = false
+                let gSize = NSSize(width: point.width * 0.86, height: point.height * 0.86)
+                let gRect = NSRect(
+                    x: (point.width - gSize.width) / 2,
+                    y: (point.height - gSize.height) / 2,
+                    width: gSize.width,
+                    height: gSize.height
+                )
+                glyph.draw(
+                    in: gRect,
+                    from: .zero,
+                    operation: .sourceOver,
+                    fraction: 1,
+                    respectFlipped: false,
+                    hints: [.interpolation: NSNumber(value: NSImageInterpolation.high.rawValue)]
+                )
+            }
         }
         NSGraphicsContext.restoreGraphicsState()
-
         let out = NSImage(size: point)
         out.addRepresentation(rep)
         out.isTemplate = false
         return out
     }
 
-    private static func log(_ msg: String) {
-        let line = "\(ISO8601DateFormatter().string(from: Date())) \(msg)\n"
-        let path = "/tmp/kenglit-picker.log"
-        guard let data = line.data(using: .utf8) else { return }
-        if FileManager.default.fileExists(atPath: path),
-           let handle = try? FileHandle(forWritingTo: URL(fileURLWithPath: path)) {
-            defer { try? handle.close() }
-            handle.seekToEndOfFile()
-            handle.write(data)
-        } else {
-            try? data.write(to: URL(fileURLWithPath: path))
+    private static func rasterize(_ source: NSImage, to point: NSSize) -> NSImage {
+        let scale = NSScreen.main?.backingScaleFactor ?? 2
+        let rep = NSBitmapImageRep(
+            bitmapDataPlanes: nil,
+            pixelsWide: Int(point.width * scale),
+            pixelsHigh: Int(point.height * scale),
+            bitsPerSample: 8,
+            samplesPerPixel: 4,
+            hasAlpha: true,
+            isPlanar: false,
+            colorSpaceName: .deviceRGB,
+            bytesPerRow: 0,
+            bitsPerPixel: 0
+        )!
+        rep.size = point
+        NSGraphicsContext.saveGraphicsState()
+        if let ctx = NSGraphicsContext(bitmapImageRep: rep) {
+            NSGraphicsContext.current = ctx
+            // Clear to transparent first
+            NSColor.clear.setFill()
+            NSRect(origin: .zero, size: point).fill()
+            source.draw(
+                in: NSRect(origin: .zero, size: point),
+                from: .zero,
+                operation: .sourceOver,
+                fraction: 1,
+                respectFlipped: false,
+                hints: [.interpolation: NSNumber(value: NSImageInterpolation.high.rawValue)]
+            )
         }
-        NSLog("Kenglit %@", msg)
+        NSGraphicsContext.restoreGraphicsState()
+        let out = NSImage(size: point)
+        out.addRepresentation(rep)
+        out.isTemplate = false
+        return out
     }
 }
 
 extension SettingsWindowController: NSWindowDelegate {
-    // Intentionally no reload on become-key / scroll. That wiped the UI.
-
     func windowWillClose(_ notification: Notification) {
-        onClose?()
-        onClose = nil
+        onClose?(); onClose = nil
+    }
+}
+
+extension SettingsWindowController: NSSearchFieldDelegate {
+    func control(_ control: NSControl, textView: NSTextView, doCommandBy commandSelector: Selector) -> Bool {
+        if commandSelector == #selector(NSResponder.insertNewline(_:)) {
+            filter = searchField.stringValue
+            expandSectionsMatchingSearch()
+            reload()
+            return true
+        }
+        return false
     }
 }
 
 extension SettingsWindowController: NSTableViewDataSource, NSTableViewDelegate {
-    func numberOfRows(in tableView: NSTableView) -> Int {
-        displayRows.count
-    }
+    func numberOfRows(in tableView: NSTableView) -> Int { displayRows.count }
 
     func tableView(_ tableView: NSTableView, heightOfRow row: Int) -> CGFloat {
-        guard row >= 0, row < displayRows.count else { return 40 }
+        guard row >= 0, row < displayRows.count else { return SettingsUI.rowH }
         switch displayRows[row] {
-        case .header: return SettingsListLayout.headerRowHeight
-        case .app: return SettingsListLayout.appRowHeight
+        case .header, .empty: return SettingsUI.headerH
+        case .app: return SettingsUI.rowH
         }
-    }
-
-    func tableView(_ tableView: NSTableView, isGroupRow row: Int) -> Bool {
-        guard row >= 0, row < displayRows.count else { return false }
-        if case .header = displayRows[row] { return true }
-        return false
     }
 
     func tableView(_ tableView: NSTableView, shouldSelectRow row: Int) -> Bool {
         guard row >= 0, row < displayRows.count else { return false }
-        switch displayRows[row] {
-        case .header:
-            return false
-        case .app(_, let isUser):
-            return isUser
-        }
+        if case .app = displayRows[row] { return true }
+        return false
     }
 
     func tableView(_ tableView: NSTableView, viewFor tableColumn: NSTableColumn?, row: Int) -> NSView? {
         guard row >= 0, row < displayRows.count else { return nil }
         switch displayRows[row] {
-        case let .header(section, title, subtitle, expanded):
-            let id = NSUserInterfaceItemIdentifier("SectionHeaderCell")
-            let cell: SectionHeaderCell
-            if let reused = tableView.makeView(withIdentifier: id, owner: nil) as? SectionHeaderCell {
-                cell = reused
-            } else {
-                cell = SectionHeaderCell(frame: .zero)
-                cell.identifier = id
-            }
-            cell.configure(title: title, subtitle: subtitle, expanded: expanded) { [weak self] in
+        case let .header(section, title, expanded):
+            let id = NSUserInterfaceItemIdentifier("hdr")
+            let cell = (tableView.makeView(withIdentifier: id, owner: nil) as? SectionHeaderCell)
+                ?? SectionHeaderCell(frame: .zero)
+            cell.identifier = id
+            cell.configure(title: title, expanded: expanded) { [weak self] in
                 self?.toggleSection(section)
             }
             return cell
-
-        case let .app(bid, isUser):
-            let name = Self.friendlyName(for: bid)
-            let icon = Self.appIcon(for: bid)
-            let id = NSUserInterfaceItemIdentifier("AppIconNameCell")
-            let cell: AppIconNameCell
-            if let reused = tableView.makeView(withIdentifier: id, owner: nil) as? AppIconNameCell {
-                cell = reused
-            } else {
-                cell = AppIconNameCell(frame: .zero)
-                cell.identifier = id
-            }
-            cell.configure(icon: icon, name: name, toolTip: bid, dimmed: !isUser)
+        case let .empty(msg):
+            let id = NSUserInterfaceItemIdentifier("empty")
+            let cell = (tableView.makeView(withIdentifier: id, owner: nil) as? EmptyHintCell)
+                ?? EmptyHintCell(frame: .zero)
+            cell.identifier = id
+            cell.configure(msg)
+            return cell
+        case let .app(bid, _):
+            let id = NSUserInterfaceItemIdentifier("app")
+            let cell = (tableView.makeView(withIdentifier: id, owner: nil) as? AppRowCell)
+                ?? AppRowCell(frame: .zero)
+            cell.identifier = id
+            let appName = Self.friendlyName(for: bid)
+            cell.configure(
+                icon: cachedIcon(for: bid),
+                name: appName,
+                toolTip: bid,
+                removable: true,
+                removeTip: "Remove \(appName) from Kenglit",
+                onRemove: { [weak self] in self?.removeConfiguredApp(bid) }
+            )
             return cell
         }
     }
 }
 
-/// Section header row (Default / Yours) with expand/collapse chevron.
-final class SectionHeaderCell: NSTableCellView {
-    private let disclosure = NSButton(frame: .zero)
-    private let titleField = NSTextField(labelWithString: "")
-    private let subField = NSTextField(labelWithString: "")
+final class SectionHeaderCell: NSView {
+    private let chevron = NSImageView(frame: .zero)
+    private let title = NSTextField(labelWithString: "")
     private var onToggle: (() -> Void)?
 
     override init(frame frameRect: NSRect) {
         super.init(frame: frameRect)
-        wantsLayer = true
-
-        disclosure.bezelStyle = .inline
-        disclosure.isBordered = false
-        disclosure.isTransparent = true
-        disclosure.imagePosition = .imageOnly
-        disclosure.imageScaling = .scaleProportionallyDown
-        disclosure.target = self
-        disclosure.action = #selector(toggleTapped)
-        disclosure.contentTintColor = .secondaryLabelColor
-        addSubview(disclosure)
-
-        titleField.isEditable = false
-        titleField.isBordered = false
-        titleField.drawsBackground = false
-        titleField.backgroundColor = .clear
-        titleField.font = .systemFont(ofSize: 11, weight: .semibold)
-        titleField.textColor = .secondaryLabelColor
-        addSubview(titleField)
-
-        subField.isEditable = false
-        subField.isBordered = false
-        subField.drawsBackground = false
-        subField.backgroundColor = .clear
-        subField.font = .systemFont(ofSize: 11, weight: .regular)
-        subField.textColor = .tertiaryLabelColor
-        subField.alignment = .right
-        addSubview(subField)
+        chevron.contentTintColor = .secondaryLabelColor
+        addSubview(chevron)
+        title.font = .systemFont(ofSize: 11, weight: .semibold)
+        title.textColor = .secondaryLabelColor
+        title.lineBreakMode = .byTruncatingTail
+        addSubview(title)
     }
-
-    @available(*, unavailable)
-    required init?(coder: NSCoder) { fatalError() }
-
-    func configure(title: String, subtitle: String, expanded: Bool, onToggle: @escaping () -> Void) {
+    @available(*, unavailable) required init?(coder: NSCoder) { fatalError() }
+    func configure(title text: String, expanded: Bool, onToggle: @escaping () -> Void) {
         self.onToggle = onToggle
-        titleField.stringValue = title.uppercased()
-        subField.stringValue = subtitle
-        let symbol = expanded ? "chevron.down" : "chevron.right"
-        if let base = NSImage(systemSymbolName: symbol, accessibilityDescription: "Toggle") {
-            let conf = NSImage.SymbolConfiguration(pointSize: 11, weight: .semibold)
-            disclosure.image = base.withSymbolConfiguration(conf) ?? base
+        title.stringValue = text
+        let sym = expanded ? "chevron.down" : "chevron.right"
+        if let b = NSImage(systemSymbolName: sym, accessibilityDescription: "Toggle") {
+            chevron.image = b.withSymbolConfiguration(.init(pointSize: 9, weight: .bold)) ?? b
         }
-        disclosure.contentTintColor = .secondaryLabelColor
+        setAccessibilityLabel(text)
+        setAccessibilityRole(.button)
         needsLayout = true
     }
-
-    @objc private func toggleTapped() {
-        onToggle?()
-    }
-
+    override func acceptsFirstMouse(for event: NSEvent?) -> Bool { true }
     override func mouseDown(with event: NSEvent) {
-        // Whole header row toggles section.
         onToggle?()
     }
-
     override func layout() {
         super.layout()
-        let h = bounds.height > 1 ? bounds.height : SettingsListLayout.headerRowHeight
-        let w = bounds.width > 1 ? bounds.width : 200
-        let L = SettingsListLayout.self
-        let chevY = ((h - L.chevron) * 0.5).rounded(.down)
-        disclosure.frame = NSRect(x: L.leading, y: chevY, width: L.chevron, height: L.chevron)
-        let titleX = L.leading + L.chevron + 6
-        let subW: CGFloat = min(120, w * 0.35)
-        let titleW = max(w - titleX - subW - L.trailing - 8, 40)
-        titleField.frame = NSRect(x: titleX, y: 0, width: titleW, height: h)
-        subField.frame = NSRect(x: w - subW - L.trailing, y: 0, width: subW, height: h)
+        let h = max(bounds.height, SettingsUI.headerH)
+        let w = max(bounds.width, 120)
+        let c: CGFloat = 11
+        chevron.frame = NSRect(x: 8, y: floor((h - c) / 2), width: c, height: c)
+        title.frame = NSRect(x: 8 + c + 6, y: floor((h - 14) / 2), width: max(w - 40, 40), height: 14)
     }
 }
 
-/// Frame-based cell. No Auto Layout inside recycled rows (avoids scroll wipe).
-final class AppIconNameCell: NSTableCellView {
+final class EmptyHintCell: NSView {
+    private let label = NSTextField(labelWithString: "")
+    override init(frame frameRect: NSRect) {
+        super.init(frame: frameRect)
+        label.font = .systemFont(ofSize: 11)
+        label.textColor = .tertiaryLabelColor
+        label.lineBreakMode = .byTruncatingTail
+        addSubview(label)
+    }
+    @available(*, unavailable) required init?(coder: NSCoder) { fatalError() }
+    func configure(_ text: String) { label.stringValue = text; needsLayout = true }
+    override func layout() {
+        super.layout()
+        label.frame = NSRect(x: SettingsUI.iconPad + SettingsUI.icon + 8, y: 0,
+                             width: max(bounds.width - 40, 40), height: bounds.height)
+    }
+}
+
+final class AppRowCell: NSView {
     private let iconView = NSImageView(frame: .zero)
     private let nameField = NSTextField(labelWithString: "")
+    private let removeButton = HoverRemoveButton(frame: .zero)
+    private var onRemove: (() -> Void)?
 
     override init(frame frameRect: NSRect) {
         super.init(frame: frameRect)
-        wantsLayer = true
-
-        iconView.wantsLayer = true
         iconView.imageScaling = .scaleProportionallyUpOrDown
-        iconView.imageAlignment = .alignCenter
-        iconView.animates = false
+        iconView.wantsLayer = true
+        iconView.layer?.cornerRadius = 4
+        iconView.layer?.masksToBounds = true
         addSubview(iconView)
-
         nameField.isEditable = false
         nameField.isBordered = false
         nameField.drawsBackground = false
-        nameField.backgroundColor = .clear
-        nameField.font = .systemFont(ofSize: 13, weight: .medium)
+        nameField.font = .systemFont(ofSize: 13)
         nameField.textColor = .labelColor
         nameField.lineBreakMode = .byTruncatingTail
-        nameField.cell?.truncatesLastVisibleLine = true
-        nameField.cell?.lineBreakMode = .byTruncatingTail
+        nameField.usesSingleLineMode = true
         addSubview(nameField)
-
-        // NSTableCellView expected refs
-        imageView = iconView
-        textField = nameField
+        removeButton.target = self
+        removeButton.action = #selector(removeTapped)
+        removeButton.toolTip = "Remove from custom applications"
+        removeButton.setAccessibilityLabel("Remove")
+        addSubview(removeButton)
     }
+    @available(*, unavailable) required init?(coder: NSCoder) { fatalError() }
 
-    @available(*, unavailable)
-    required init?(coder: NSCoder) { fatalError() }
-
-    func configure(icon: NSImage, name: String, toolTip: String, dimmed: Bool = false) {
+    func configure(
+        icon: NSImage,
+        name: String,
+        toolTip: String,
+        removable: Bool,
+        removeTip: String = "Remove",
+        onRemove: (() -> Void)?
+    ) {
         iconView.image = icon
-        iconView.alphaValue = dimmed ? 0.55 : 1.0
-        // Keep image locked to view bounds (no uneven NSImage size bleed).
-        iconView.imageScaling = .scaleProportionallyUpOrDown
-        iconView.imageAlignment = .alignCenter
         nameField.stringValue = name
-        nameField.textColor = dimmed ? .secondaryLabelColor : .labelColor
         self.toolTip = toolTip
+        removeButton.isHidden = !removable
+        removeButton.isEnabled = removable
+        removeButton.toolTip = removeTip
+        removeButton.setAccessibilityLabel(removeTip)
+        self.onRemove = onRemove
+        setAccessibilityLabel(name)
         needsLayout = true
-        needsDisplay = true
     }
-
+    @objc private func removeTapped() { onRemove?() }
     override func layout() {
         super.layout()
-        let h = bounds.height > 1 ? bounds.height : SettingsListLayout.appRowHeight
-        let w = bounds.width > 1 ? bounds.width : 200
-        let L = SettingsListLayout.self
-        // Same leading edge as section chevron → icons form one column.
-        let iconY = ((h - L.icon) * 0.5).rounded(.down)
-        iconView.frame = NSRect(x: L.leading, y: iconY, width: L.icon, height: L.icon)
-        let textX = L.leading + L.icon + L.iconGap
-        nameField.frame = NSRect(
-            x: textX,
-            y: 0,
-            width: max(w - textX - L.trailing, 40),
-            height: h
-        )
+        let h = max(bounds.height, SettingsUI.rowH)
+        let w = max(bounds.width, 120)
+        let icon = SettingsUI.icon
+        let pad = SettingsUI.iconPad
+        iconView.frame = NSRect(x: pad, y: floor((h - icon) / 2), width: icon, height: icon)
+        var right = w - SettingsUI.trailing
+        if !removeButton.isHidden {
+            let b: CGFloat = 22
+            right -= b
+            removeButton.frame = NSRect(x: right, y: floor((h - b) / 2), width: b, height: b)
+            right -= 6
+        } else {
+            removeButton.frame = .zero
+        }
+        let textX = pad + icon + 8
+        nameField.frame = NSRect(x: textX, y: floor((h - 16) / 2), width: max(right - textX, 40), height: 16)
+    }
+}
+
+final class HoverRemoveButton: NSButton {
+    private var tracking: NSTrackingArea?
+    private var hovered = false
+    private var pressed = false
+
+    override init(frame frameRect: NSRect) {
+        super.init(frame: frameRect)
+        isBordered = false
+        bezelStyle = .inline
+        imagePosition = .imageOnly
+        focusRingType = .exterior
+        wantsLayer = true
+        layer?.cornerRadius = 8
+        layer?.masksToBounds = true
+        if let base = NSImage(systemSymbolName: "minus", accessibilityDescription: "Remove") {
+            image = base.withSymbolConfiguration(.init(pointSize: 10, weight: .bold)) ?? base
+        }
+        apply(animated: false)
+    }
+    @available(*, unavailable) required init?(coder: NSCoder) { fatalError() }
+
+    override func updateTrackingAreas() {
+        super.updateTrackingAreas()
+        if let tracking { removeTrackingArea(tracking) }
+        let a = NSTrackingArea(rect: bounds, options: [.mouseEnteredAndExited, .activeInKeyWindow, .inVisibleRect], owner: self, userInfo: nil)
+        addTrackingArea(a); tracking = a
+    }
+    override func acceptsFirstMouse(for event: NSEvent?) -> Bool { true }
+    override func mouseEntered(with event: NSEvent) { hovered = true; apply(animated: true) }
+    override func mouseExited(with event: NSEvent) { hovered = false; pressed = false; apply(animated: true) }
+    override func mouseDown(with event: NSEvent) {
+        pressed = true; apply(animated: true)
+        super.mouseDown(with: event)
+        pressed = false; apply(animated: true)
+    }
+    private func apply(animated: Bool) {
+        let reduce = NSWorkspace.shared.accessibilityDisplayShouldReduceMotion
+        let dur: CFTimeInterval = (animated && !reduce) ? 0.12 : 0
+        let tint: NSColor
+        let fill: CGColor
+        if pressed { tint = .white; fill = NSColor.systemRed.cgColor }
+        else if hovered { tint = .systemRed; fill = NSColor.systemRed.withAlphaComponent(0.14).cgColor }
+        else { tint = .secondaryLabelColor; fill = NSColor.clear.cgColor }
+        contentTintColor = tint
+        let block = { self.layer?.backgroundColor = fill }
+        if dur > 0 {
+            NSAnimationContext.runAnimationGroup { c in
+                c.duration = dur
+                c.timingFunction = CAMediaTimingFunction(name: .easeOut)
+                NSAnimationContext.current.allowsImplicitAnimation = true
+                block()
+            }
+        } else { block() }
+    }
+}
+
+@MainActor
+final class HelpPopover {
+    static let shared = HelpPopover()
+    private let popover = NSPopover()
+    private let label = NSTextField(wrappingLabelWithString: "")
+
+    private init() {
+        popover.behavior = .transient
+        popover.animates = true
+        label.isEditable = false
+        label.isBordered = false
+        label.drawsBackground = false
+        label.font = .systemFont(ofSize: 12)
+        label.textColor = .labelColor
+        label.maximumNumberOfLines = 0
+        let box = NSView(frame: NSRect(x: 0, y: 0, width: 320, height: 160))
+        label.translatesAutoresizingMaskIntoConstraints = false
+        box.addSubview(label)
+        NSLayoutConstraint.activate([
+            label.leadingAnchor.constraint(equalTo: box.leadingAnchor, constant: 14),
+            label.trailingAnchor.constraint(equalTo: box.trailingAnchor, constant: -14),
+            label.topAnchor.constraint(equalTo: box.topAnchor, constant: 12),
+            label.bottomAnchor.constraint(equalTo: box.bottomAnchor, constant: -12),
+            box.widthAnchor.constraint(equalToConstant: 320),
+        ])
+        let vc = NSViewController(); vc.view = box
+        popover.contentViewController = vc
     }
 
-    override var intrinsicContentSize: NSSize {
-        NSSize(width: NSView.noIntrinsicMetric, height: SettingsListLayout.appRowHeight)
+    func show(relativeTo rect: NSRect, of view: NSView, text: String) {
+        label.stringValue = text
+        let size = label.sizeThatFits(NSSize(width: 292, height: 2000))
+        popover.contentSize = NSSize(width: 320, height: max(size.height + 24, 80))
+        if popover.isShown { popover.close() }
+        popover.show(relativeTo: rect, of: view, preferredEdge: .maxY)
     }
 }
 
