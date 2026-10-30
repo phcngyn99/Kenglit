@@ -10,6 +10,7 @@ final class SettingsWindowController: NSWindowController {
     private var loginButton: NSButton!
     private var errorLabel: NSTextField!
     var onClose: (() -> Void)?
+    private var appPickerController: AppPickerWindowController?
     /// Snapshot used by the table so scroll/recycle never reads a moving target.
     private var rows: [String] = []
 
@@ -189,75 +190,28 @@ final class SettingsWindowController: NSWindowController {
     }
 
     @objc private func pickFromApplications() {
-        let panel = NSOpenPanel()
-        panel.canChooseFiles = true
-        panel.canChooseDirectories = false
-        panel.allowsMultipleSelection = true
-        panel.treatsFilePackagesAsDirectories = false
-        panel.canCreateDirectories = false
-        panel.prompt = "Add"
-        panel.message = "Choose apps for English"
-        panel.allowedContentTypes = [.application, .applicationBundle]
-        panel.directoryURL = URL(fileURLWithPath: "/Applications", isDirectory: true)
-
-        NSApp.setActivationPolicy(.regular)
-        NSApp.activate(ignoringOtherApps: true)
-        window?.makeKeyAndOrderFront(nil)
-
-        Self.log("pick open")
-        let response = panel.runModal()
-        Self.log("pick response=\(response.rawValue) count=\(panel.urls.count)")
-
-        NSApp.setActivationPolicy(.accessory)
-
-        guard response == .OK else {
-            errorLabel.stringValue = ""
-            window?.makeKeyAndOrderFront(nil)
+        if let existing = appPickerController {
+            existing.showWindow(nil)
+            existing.window?.makeKeyAndOrderFront(nil)
+            NSApp.activate(ignoringOtherApps: true)
             return
         }
+        NSApp.setActivationPolicy(.regular)
+        NSApp.activate(ignoringOtherApps: true)
 
-        var added = 0
-        var failed = 0
-        var lastID: String?
-        for url in panel.urls {
-            let resolved = url.resolvingSymlinksInPath()
-            Self.log("pick try \(resolved.path)")
-            guard let bid = Self.bundleIdentifier(forAppURL: resolved),
-                  bid != "dev.finn.kenglit" else {
-                failed += 1
-                Self.log("pick fail id \(resolved.path)")
-                continue
-            }
-            let before = Set(preferences.watchedBundleIDs)
-            preferences.addWatchedBundleID(bid)
-            if !before.contains(bid) {
-                added += 1
-                lastID = bid
-            }
-            if let name = Self.displayName(forAppURL: resolved), !name.isEmpty {
-                WatchedAppsUserNames.set(name, for: bid)
-            }
-            Self.log("pick ok \(bid)")
+        let picker = AppPickerWindowController(preferences: preferences)
+        appPickerController = picker
+        picker.onAdded = { [weak self] in
+            self?.reloadTable()
         }
-
-        reloadTable()
-        if let lastID {
-            scrollToBundleID(lastID)
+        picker.onDone = { [weak self] in
+            self?.reloadTable()
+            self?.appPickerController = nil
+            self?.window?.makeKeyAndOrderFront(nil)
+            NSApp.activate(ignoringOtherApps: true)
         }
-        NotificationCenter.default.post(name: .kenglitPrefsChanged, object: nil)
-
-        if added > 0 {
-            errorLabel.textColor = .secondaryLabelColor
-            errorLabel.stringValue = "+\(added)"
-        } else if failed > 0 {
-            errorLabel.textColor = .systemRed
-            errorLabel.stringValue = "Read fail"
-        } else {
-            errorLabel.textColor = .secondaryLabelColor
-            errorLabel.stringValue = "None new"
-        }
-        window?.makeKeyAndOrderFront(nil)
-        Self.log("pick done added=\(added) failed=\(failed) total=\(preferences.watchedBundleIDs.count)")
+        picker.showWindow(nil)
+        picker.window?.makeKeyAndOrderFront(nil)
     }
 
     @objc private func resetDefaults() {
