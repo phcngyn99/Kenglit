@@ -129,47 +129,115 @@ final class SettingsWindowController: NSWindowController {
         NotificationCenter.default.post(name: .kenglitPrefsChanged, object: nil)
     }
 
+
     @objc private func pickFromApplications() {
         let panel = NSOpenPanel()
         panel.canChooseFiles = true
         panel.canChooseDirectories = false
         panel.allowsMultipleSelection = true
-        panel.allowedContentTypes = [.application]
-        panel.directoryURL = URL(fileURLWithPath: "/Applications", isDirectory: true)
-        panel.prompt = "Add"
-        panel.message = "Pick apps → EN"
-
-        // Also allow ~/Applications
         panel.treatsFilePackagesAsDirectories = false
+        panel.prompt = "Add"
+        panel.message = "Pick apps -> EN"
+        let appsDir = URL(fileURLWithPath: "/Applications", isDirectory: true)
+        if FileManager.default.fileExists(atPath: appsDir.path) {
+            panel.directoryURL = appsDir
+        }
+        if #available(macOS 11.0, *) {
+            panel.allowedContentTypes = [.application, .applicationBundle]
+        } else {
+            panel.allowedFileTypes = ["app"]
+        }
 
-        guard let win = window else { return }
-        panel.beginSheetModal(for: win) { [weak self] response in
-            guard let self, response == .OK else { return }
-            var added = 0
-            for url in panel.urls {
-                guard let bid = Bundle(url: url)?.bundleIdentifier,
-                      bid != "dev.finn.kenglit" else { continue }
-                let before = Set(self.preferences.watchedBundleIDs)
-                self.preferences.addWatchedBundleID(bid)
-                if !before.contains(bid) { added += 1 }
+        // LSUIElement menu-bar apps: sheet can no-op. Use app-modal + activate.
+        NSApp.activate(ignoringOtherApps: true)
+        window?.makeKeyAndOrderFront(nil)
 
-                // Remember friendly name if we can read it from the app bundle
-                if let name = Bundle(url: url)?.object(forInfoDictionaryKey: "CFBundleName") as? String,
-                   !name.isEmpty {
-                    WatchedAppsUserNames.set(name, for: bid)
-                } else if let name = Bundle(url: url)?.object(forInfoDictionaryKey: "CFBundleDisplayName") as? String,
-                          !name.isEmpty {
-                    WatchedAppsUserNames.set(name, for: bid)
-                }
+        let response = panel.runModal()
+        guard response == .OK else {
+            errorLabel.stringValue = ""
+            return
+        }
+
+        var added = 0
+        var failed = 0
+        for url in panel.urls {
+            let resolved = url.resolvingSymlinksInPath()
+            guard let bid = Self.bundleIdentifier(forAppURL: resolved),
+                  bid != "dev.finn.kenglit" else {
+                failed += 1
+                continue
             }
-            self.reloadTable()
-            NotificationCenter.default.post(name: .kenglitPrefsChanged, object: nil)
-            if added == 0 {
-                self.errorLabel.stringValue = "None new"
-            } else {
-                self.errorLabel.stringValue = ""
+            let before = Set(preferences.watchedBundleIDs)
+            preferences.addWatchedBundleID(bid)
+            if !before.contains(bid) { added += 1 }
+            if let name = Self.displayName(forAppURL: resolved), !name.isEmpty {
+                WatchedAppsUserNames.set(name, for: bid)
             }
         }
+
+        reloadTable()
+        let last = preferences.watchedBundleIDs.count - 1
+        if last >= 0 { table.scrollRowToVisible(last) }
+        NotificationCenter.default.post(name: .kenglitPrefsChanged, object: nil)
+
+        if added > 0 {
+            errorLabel.textColor = .secondaryLabelColor
+            errorLabel.stringValue = "+\(added)"
+        } else if failed > 0 {
+            errorLabel.textColor = .systemRed
+            errorLabel.stringValue = "Read fail"
+        } else {
+            errorLabel.textColor = .secondaryLabelColor
+            errorLabel.stringValue = "None new"
+        }
+    }
+
+    private static func bundleIdentifier(forAppURL url: URL) -> String? {
+        let appURL = normalizeAppURL(url)
+        if let id = Bundle(url: appURL)?.bundleIdentifier, !id.isEmpty {
+            return id
+        }
+        let info = appURL.appendingPathComponent("Contents/Info.plist")
+        if let dict = NSDictionary(contentsOf: info) as? [String: Any],
+           let id = dict["CFBundleIdentifier"] as? String,
+           !id.isEmpty {
+            return id
+        }
+        let cfURL = appURL as CFURL
+        if let cfBundle = CFBundleCreate(kCFAllocatorDefault, cfURL),
+           let cfID = CFBundleGetIdentifier(cfBundle) as String?,
+           !cfID.isEmpty {
+            return cfID
+        }
+        return nil
+    }
+
+    private static func displayName(forAppURL url: URL) -> String? {
+        let appURL = normalizeAppURL(url)
+        let info = appURL.appendingPathComponent("Contents/Info.plist")
+        if let dict = NSDictionary(contentsOf: info) as? [String: Any] {
+            if let name = dict["CFBundleDisplayName"] as? String, !name.isEmpty { return name }
+            if let name = dict["CFBundleName"] as? String, !name.isEmpty { return name }
+        }
+        if let name = Bundle(url: appURL)?.object(forInfoDictionaryKey: "CFBundleDisplayName") as? String,
+           !name.isEmpty {
+            return name
+        }
+        if let name = Bundle(url: appURL)?.object(forInfoDictionaryKey: "CFBundleName") as? String,
+           !name.isEmpty {
+            return name
+        }
+        return appURL.deletingPathExtension().lastPathComponent
+    }
+
+    private static func normalizeAppURL(_ url: URL) -> URL {
+        var u = url.resolvingSymlinksInPath()
+        while u.pathExtension.lowercased() != "app", u.path != "/", !u.path.isEmpty {
+            let parent = u.deletingLastPathComponent()
+            if parent.path == u.path { break }
+            u = parent
+        }
+        return u
     }
 
     @objc private func resetDefaults() {
