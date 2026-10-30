@@ -37,7 +37,7 @@ final class SettingsWindowController: NSWindowController {
         root.addSubview(loginButton)
 
         errorLabel = NSTextField(labelWithString: "")
-        errorLabel.textColor = .systemRed
+        errorLabel.textColor = .secondaryLabelColor
         errorLabel.font = .systemFont(ofSize: 11)
         errorLabel.frame = NSRect(x: 230, y: 420, width: 300, height: 24)
         root.addSubview(errorLabel)
@@ -94,14 +94,15 @@ final class SettingsWindowController: NSWindowController {
             preferences.launchAtLogin = want
             errorLabel.stringValue = ""
         } else {
+            errorLabel.textColor = .systemRed
             errorLabel.stringValue = "Login fail"
             loginButton.state = preferences.launchAtLogin ? .on : .off
         }
     }
 
     @objc private func addBundle() {
-        let id = bundleField.stringValue
-        guard !id.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else { return }
+        let id = bundleField.stringValue.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !id.isEmpty else { return }
         preferences.addWatchedBundleID(id)
         bundleField.stringValue = ""
         reloadTable()
@@ -127,8 +128,9 @@ final class SettingsWindowController: NSWindowController {
         }
         reloadTable()
         NotificationCenter.default.post(name: .kenglitPrefsChanged, object: nil)
+        errorLabel.textColor = .secondaryLabelColor
+        errorLabel.stringValue = "+1"
     }
-
 
     @objc private func pickFromApplications() {
         let panel = NSOpenPanel()
@@ -136,23 +138,28 @@ final class SettingsWindowController: NSWindowController {
         panel.canChooseDirectories = false
         panel.allowsMultipleSelection = true
         panel.treatsFilePackagesAsDirectories = false
+        panel.canCreateDirectories = false
         panel.prompt = "Add"
         panel.message = "Pick apps -> EN"
+        panel.allowedFileTypes = ["app"]
         let appsDir = URL(fileURLWithPath: "/Applications", isDirectory: true)
         if FileManager.default.fileExists(atPath: appsDir.path) {
             panel.directoryURL = appsDir
         }
-        if #available(macOS 11.0, *) {
-            panel.allowedContentTypes = [.application, .applicationBundle]
-        } else {
-            panel.allowedFileTypes = ["app"]
-        }
 
-        // LSUIElement menu-bar apps: sheet can no-op. Use app-modal + activate.
+        // LSUIElement / accessory: open panels often fail unless app is regular.
+        let previousPolicy = NSApp.activationPolicy()
+        NSApp.setActivationPolicy(.regular)
         NSApp.activate(ignoringOtherApps: true)
         window?.makeKeyAndOrderFront(nil)
 
+        Self.log("pick open")
         let response = panel.runModal()
+        Self.log("pick response=\(response.rawValue) count=\(panel.urls.count)")
+
+        NSApp.setActivationPolicy(.accessory)
+        _ = previousPolicy
+
         guard response == .OK else {
             errorLabel.stringValue = ""
             return
@@ -162,22 +169,30 @@ final class SettingsWindowController: NSWindowController {
         var failed = 0
         for url in panel.urls {
             let resolved = url.resolvingSymlinksInPath()
+            Self.log("pick try \(resolved.path)")
             guard let bid = Self.bundleIdentifier(forAppURL: resolved),
                   bid != "dev.finn.kenglit" else {
                 failed += 1
+                Self.log("pick fail id \(resolved.path)")
                 continue
             }
             let before = Set(preferences.watchedBundleIDs)
             preferences.addWatchedBundleID(bid)
-            if !before.contains(bid) { added += 1 }
+            if !before.contains(bid) {
+                added += 1
+            }
             if let name = Self.displayName(forAppURL: resolved), !name.isEmpty {
                 WatchedAppsUserNames.set(name, for: bid)
             }
+            Self.log("pick ok \(bid)")
         }
 
         reloadTable()
+        table.needsDisplay = true
         let last = preferences.watchedBundleIDs.count - 1
-        if last >= 0 { table.scrollRowToVisible(last) }
+        if last >= 0 {
+            table.scrollRowToVisible(last)
+        }
         NotificationCenter.default.post(name: .kenglitPrefsChanged, object: nil)
 
         if added > 0 {
@@ -190,6 +205,14 @@ final class SettingsWindowController: NSWindowController {
             errorLabel.textColor = .secondaryLabelColor
             errorLabel.stringValue = "None new"
         }
+        window?.makeKeyAndOrderFront(nil)
+        Self.log("pick done added=\(added) failed=\(failed) total=\(preferences.watchedBundleIDs.count)")
+    }
+
+    @objc private func resetDefaults() {
+        preferences.setWatchedBundleIDs(WatchedApps.defaults)
+        reloadTable()
+        NotificationCenter.default.post(name: .kenglitPrefsChanged, object: nil)
     }
 
     private static func bundleIdentifier(forAppURL url: URL) -> String? {
@@ -219,14 +242,6 @@ final class SettingsWindowController: NSWindowController {
             if let name = dict["CFBundleDisplayName"] as? String, !name.isEmpty { return name }
             if let name = dict["CFBundleName"] as? String, !name.isEmpty { return name }
         }
-        if let name = Bundle(url: appURL)?.object(forInfoDictionaryKey: "CFBundleDisplayName") as? String,
-           !name.isEmpty {
-            return name
-        }
-        if let name = Bundle(url: appURL)?.object(forInfoDictionaryKey: "CFBundleName") as? String,
-           !name.isEmpty {
-            return name
-        }
         return appURL.deletingPathExtension().lastPathComponent
     }
 
@@ -240,10 +255,19 @@ final class SettingsWindowController: NSWindowController {
         return u
     }
 
-    @objc private func resetDefaults() {
-        preferences.setWatchedBundleIDs(WatchedApps.defaults)
-        reloadTable()
-        NotificationCenter.default.post(name: .kenglitPrefsChanged, object: nil)
+    private static func log(_ msg: String) {
+        let line = "\(ISO8601DateFormatter().string(from: Date())) \(msg)\n"
+        let path = "/tmp/kenglit-picker.log"
+        guard let data = line.data(using: .utf8) else { return }
+        if FileManager.default.fileExists(atPath: path),
+           let handle = try? FileHandle(forWritingTo: URL(fileURLWithPath: path)) {
+            defer { try? handle.close() }
+            handle.seekToEndOfFile()
+            handle.write(data)
+        } else {
+            try? data.write(to: URL(fileURLWithPath: path))
+        }
+        NSLog("Kenglit %@", msg)
     }
 }
 
