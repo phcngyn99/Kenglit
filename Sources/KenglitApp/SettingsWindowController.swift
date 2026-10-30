@@ -12,9 +12,17 @@ final class SettingsWindowController: NSWindowController {
     var onClose: (() -> Void)?
     /// Snapshot rows so scroll/recycle never reads a moving target.
     private var displayRows: [SettingsRow] = []
+    /// Yours expanded by default; Default collapsed.
+    private var yoursExpanded = true
+    private var defaultExpanded = false
+
+    private enum SectionID {
+        case yours
+        case defaults
+    }
 
     private enum SettingsRow {
-        case header(title: String, subtitle: String)
+        case header(section: SectionID, title: String, subtitle: String, expanded: Bool)
         case app(bundleID: String, isUser: Bool)
     }
 
@@ -144,27 +152,45 @@ final class SettingsWindowController: NSWindowController {
         let builtin = WatchedApps.defaults
         var next: [SettingsRow] = []
 
-        // User first (editable)
+        // Yours first (editable)
         next.append(.header(
+            section: .yours,
             title: "Yours",
-            subtitle: user.isEmpty ? "none yet" : "\(user.count)"
+            subtitle: user.isEmpty ? "none yet" : "\(user.count)",
+            expanded: yoursExpanded
         ))
-        for bid in user {
-            next.append(.app(bundleID: bid, isUser: true))
+        if yoursExpanded {
+            for bid in user {
+                next.append(.app(bundleID: bid, isUser: true))
+            }
         }
 
         next.append(.header(
+            section: .defaults,
             title: "Default",
-            subtitle: "\(builtin.count) · always EN"
+            subtitle: "\(builtin.count) · always EN",
+            expanded: defaultExpanded
         ))
-        for bid in builtin {
-            next.append(.app(bundleID: bid, isUser: false))
+        if defaultExpanded {
+            for bid in builtin {
+                next.append(.app(bundleID: bid, isUser: false))
+            }
         }
 
         displayRows = next
         table.reloadData()
         enabledButton.state = preferences.isEnabled ? .on : .off
         loginButton.state = preferences.launchAtLogin ? .on : .off
+    }
+
+    private func toggleSection(_ section: SectionID) {
+        switch section {
+        case .yours:
+            yoursExpanded.toggle()
+        case .defaults:
+            defaultExpanded.toggle()
+        }
+        reloadTable()
     }
 
     @objc private func toggleEnabled() {
@@ -464,7 +490,7 @@ extension SettingsWindowController: NSTableViewDataSource, NSTableViewDelegate {
     func tableView(_ tableView: NSTableView, heightOfRow row: Int) -> CGFloat {
         guard row >= 0, row < displayRows.count else { return 40 }
         switch displayRows[row] {
-        case .header: return 28
+        case .header: return 30
         case .app: return 40
         }
     }
@@ -488,7 +514,7 @@ extension SettingsWindowController: NSTableViewDataSource, NSTableViewDelegate {
     func tableView(_ tableView: NSTableView, viewFor tableColumn: NSTableColumn?, row: Int) -> NSView? {
         guard row >= 0, row < displayRows.count else { return nil }
         switch displayRows[row] {
-        case let .header(title, subtitle):
+        case let .header(section, title, subtitle, expanded):
             let id = NSUserInterfaceItemIdentifier("SectionHeaderCell")
             let cell: SectionHeaderCell
             if let reused = tableView.makeView(withIdentifier: id, owner: nil) as? SectionHeaderCell {
@@ -497,7 +523,9 @@ extension SettingsWindowController: NSTableViewDataSource, NSTableViewDelegate {
                 cell = SectionHeaderCell(frame: .zero)
                 cell.identifier = id
             }
-            cell.configure(title: title, subtitle: subtitle)
+            cell.configure(title: title, subtitle: subtitle, expanded: expanded) { [weak self] in
+                self?.toggleSection(section)
+            }
             return cell
 
         case let .app(bid, isUser):
@@ -517,14 +545,27 @@ extension SettingsWindowController: NSTableViewDataSource, NSTableViewDelegate {
     }
 }
 
-/// Section header row (Default / Yours).
-final class SectionHeaderCell: NSView {
+/// Section header row (Default / Yours) with expand/collapse chevron.
+final class SectionHeaderCell: NSTableCellView {
+    private let disclosure = NSButton(frame: .zero)
     private let titleField = NSTextField(labelWithString: "")
     private let subField = NSTextField(labelWithString: "")
+    private var onToggle: (() -> Void)?
 
     override init(frame frameRect: NSRect) {
         super.init(frame: frameRect)
         wantsLayer = true
+
+        disclosure.bezelStyle = .inline
+        disclosure.isBordered = false
+        disclosure.imagePosition = .imageOnly
+        disclosure.target = self
+        disclosure.action = #selector(toggleTapped)
+        if let img = NSImage(systemSymbolName: "chevron.right", accessibilityDescription: "Toggle") {
+            disclosure.image = img
+        }
+        disclosure.contentTintColor = .secondaryLabelColor
+        addSubview(disclosure)
 
         titleField.isEditable = false
         titleField.isBordered = false
@@ -547,18 +588,36 @@ final class SectionHeaderCell: NSView {
     @available(*, unavailable)
     required init?(coder: NSCoder) { fatalError() }
 
-    func configure(title: String, subtitle: String) {
+    func configure(title: String, subtitle: String, expanded: Bool, onToggle: @escaping () -> Void) {
+        self.onToggle = onToggle
         titleField.stringValue = title.uppercased()
         subField.stringValue = subtitle
+        let symbol = expanded ? "chevron.down" : "chevron.right"
+        if let img = NSImage(systemSymbolName: symbol, accessibilityDescription: "Toggle") {
+            disclosure.image = img
+        }
+        disclosure.contentTintColor = .secondaryLabelColor
         needsLayout = true
+    }
+
+    @objc private func toggleTapped() {
+        onToggle?()
+    }
+
+    override func mouseDown(with event: NSEvent) {
+        // Whole header row toggles section.
+        onToggle?()
     }
 
     override func layout() {
         super.layout()
-        let h = max(bounds.height, 28)
+        let h = max(bounds.height, 30)
         let w = max(bounds.width, 120)
-        let inset: CGFloat = 10
-        titleField.frame = NSRect(x: inset, y: 0, width: w * 0.55, height: h)
+        let inset: CGFloat = 8
+        let chev: CGFloat = 16
+        disclosure.frame = NSRect(x: inset, y: (h - chev) / 2, width: chev, height: chev)
+        let titleX = disclosure.frame.maxX + 4
+        titleField.frame = NSRect(x: titleX, y: 0, width: w * 0.45, height: h)
         let subW = w * 0.4
         subField.frame = NSRect(x: w - subW - inset, y: 0, width: subW, height: h)
     }
