@@ -8,7 +8,7 @@ final class StatusItemController: NSObject, NSMenuDelegate {
     private let model: AppModel
     private var statusItem: NSStatusItem!
     private var cancellables = Set<AnyCancellable>()
-    private var settingsWindow: NSWindow?
+    private var settingsController: SettingsWindowController?
     private var lastEnabled: Bool?
 
     init(model: AppModel) {
@@ -158,14 +158,13 @@ final class StatusItemController: NSObject, NSMenuDelegate {
 
 
     @objc private func openSettings() {
-        if let existing = settingsWindow {
-            existing.makeKeyAndOrderFront(nil)
+        if let existing = settingsController {
+            existing.showWindow(nil)
             NSApp.activate(ignoringOtherApps: true)
             return
         }
         let controller = SettingsWindowController(preferences: model.preferences)
-        settingsWindow = controller.window
-        controller.window?.delegate = self
+        settingsController = controller
         controller.showWindow(nil)
         NSApp.activate(ignoringOtherApps: true)
     }
@@ -175,11 +174,6 @@ final class StatusItemController: NSObject, NSMenuDelegate {
     }
 }
 
-extension StatusItemController: NSWindowDelegate {
-    func windowWillClose(_ notification: Notification) {
-        settingsWindow = nil
-    }
-}
 
 /// Menu-bar template glyphs drawn at runtime (crisp On/Off states).
 enum MenuBarIcon {

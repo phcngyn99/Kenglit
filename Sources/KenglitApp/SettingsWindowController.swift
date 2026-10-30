@@ -8,6 +8,8 @@ final class SettingsWindowController: NSWindowController {
     private var table: NSTableView!
     private var loginButton: NSButton!
     private var errorLabel: NSTextField!
+    /// Snapshot used by the table so scroll/recycle never reads a moving target.
+    private var rows: [String] = []
 
     init(preferences: PreferencesStore) {
         self.preferences = preferences
@@ -32,7 +34,6 @@ final class SettingsWindowController: NSWindowController {
     private func buildContent() -> NSView {
         let root = NSView(frame: NSRect(x: 0, y: 0, width: 480, height: 520))
 
-        // Top bar
         loginButton = NSButton(checkboxWithTitle: "Login start", target: self, action: #selector(toggleLogin))
         loginButton.translatesAutoresizingMaskIntoConstraints = false
         root.addSubview(loginButton)
@@ -43,34 +44,41 @@ final class SettingsWindowController: NSWindowController {
         errorLabel.translatesAutoresizingMaskIntoConstraints = false
         root.addSubview(errorLabel)
 
-        // Table
         let scroll = NSScrollView()
         scroll.translatesAutoresizingMaskIntoConstraints = false
         scroll.hasVerticalScroller = true
+        scroll.autohidesScrollers = true
         scroll.borderType = .bezelBorder
         scroll.drawsBackground = true
+        scroll.backgroundColor = .controlBackgroundColor
 
         table = NSTableView()
         table.headerView = nil
-        table.rowHeight = 36
+        table.rowHeight = 40
         table.allowsMultipleSelection = true
         table.usesAlternatingRowBackgroundColors = true
-        table.style = .inset
+        table.selectionHighlightStyle = .regular
+        table.gridStyleMask = []
+        table.intercellSpacing = NSSize(width: 0, height: 2)
+        if #available(macOS 11.0, *) {
+            table.style = .fullWidth
+        }
 
         let col = NSTableColumn(identifier: NSUserInterfaceItemIdentifier("app"))
         col.title = "EN apps"
-        col.width = 400
+        col.resizingMask = .autoresizingMask
+        col.width = 440
+        col.minWidth = 200
         table.addTableColumn(col)
         table.dataSource = self
         table.delegate = self
+        table.doubleAction = nil
         scroll.documentView = table
         root.addSubview(scroll)
 
-        // Bottom buttons — browse-first
         let pickApps = NSButton(title: "Add Apps…", target: self, action: #selector(pickFromApplications))
         pickApps.translatesAutoresizingMaskIntoConstraints = false
         pickApps.bezelStyle = .rounded
-        pickApps.keyEquivalent = "\r"
         root.addSubview(pickApps)
 
         let addFront = NSButton(title: "Add front", target: self, action: #selector(addFrontmost))
@@ -118,6 +126,7 @@ final class SettingsWindowController: NSWindowController {
     }
 
     private func reloadTable() {
+        rows = preferences.watchedBundleIDs
         table.reloadData()
         loginButton.state = preferences.launchAtLogin ? .on : .off
     }
@@ -135,13 +144,16 @@ final class SettingsWindowController: NSWindowController {
     }
 
     @objc private func removeSelected() {
-        let rows = table.selectedRowIndexes.sorted(by: >)
-        guard !rows.isEmpty else { return }
-        var ids = preferences.watchedBundleIDs
-        for row in rows where row >= 0 && row < ids.count {
-            ids.remove(at: row)
+        let selected = table.selectedRowIndexes
+        guard !selected.isEmpty else { return }
+        let removeIDs = selected.compactMap { idx -> String? in
+            guard idx >= 0, idx < rows.count else { return nil }
+            return rows[idx]
         }
-        preferences.setWatchedBundleIDs(ids)
+        guard !removeIDs.isEmpty else { return }
+        let removeSet = Set(removeIDs)
+        let next = preferences.watchedBundleIDs.filter { !removeSet.contains($0) }
+        preferences.setWatchedBundleIDs(next)
         reloadTable()
         NotificationCenter.default.post(name: .kenglitPrefsChanged, object: nil)
     }
@@ -172,9 +184,7 @@ final class SettingsWindowController: NSWindowController {
         panel.message = "Choose apps for English"
         panel.allowedContentTypes = [.application, .applicationBundle]
         panel.directoryURL = URL(fileURLWithPath: "/Applications", isDirectory: true)
-        panel.canSelectHiddenExtension = true
 
-        // Accessory apps need temporary regular policy or open panel dies silently.
         NSApp.setActivationPolicy(.regular)
         NSApp.activate(ignoringOtherApps: true)
         window?.makeKeyAndOrderFront(nil)
@@ -243,7 +253,7 @@ final class SettingsWindowController: NSWindowController {
     }
 
     private func scrollToBundleID(_ id: String) {
-        if let idx = preferences.watchedBundleIDs.firstIndex(of: id) {
+        if let idx = rows.firstIndex(of: id) {
             table.scrollRowToVisible(idx)
             table.selectRowIndexes(IndexSet(integer: idx), byExtendingSelection: false)
         }
@@ -311,7 +321,6 @@ final class SettingsWindowController: NSWindowController {
             icon.size = size
             return icon
         }
-        // Generic app icon fallback
         if let generic = NSImage(systemSymbolName: "app.fill", accessibilityDescription: nil) {
             let config = NSImage.SymbolConfiguration(pointSize: 18, weight: .regular)
             let img = generic.withSymbolConfiguration(config) ?? generic
@@ -338,63 +347,87 @@ final class SettingsWindowController: NSWindowController {
 }
 
 extension SettingsWindowController: NSWindowDelegate {
-    func windowDidBecomeKey(_ notification: Notification) {
-        reloadTable()
-    }
+    // Intentionally no reload on become-key / scroll. That wiped the UI.
 }
 
 extension SettingsWindowController: NSTableViewDataSource, NSTableViewDelegate {
     func numberOfRows(in tableView: NSTableView) -> Int {
-        preferences.watchedBundleIDs.count
+        rows.count
     }
 
     func tableView(_ tableView: NSTableView, heightOfRow row: Int) -> CGFloat {
-        36
+        40
     }
 
     func tableView(_ tableView: NSTableView, viewFor tableColumn: NSTableColumn?, row: Int) -> NSView? {
-        let bid = preferences.watchedBundleIDs[row]
+        guard row >= 0, row < rows.count else { return nil }
+        let bid = rows[row]
         let name = Self.friendlyName(for: bid)
         let icon = Self.appIcon(for: bid)
 
-        let id = NSUserInterfaceItemIdentifier("AppCell")
-        let cell = tableView.makeView(withIdentifier: id, owner: nil) as? NSTableCellView
-            ?? {
-                let cell = NSTableCellView()
-                cell.identifier = id
-
-                let imageView = NSImageView()
-                imageView.identifier = NSUserInterfaceItemIdentifier("icon")
-                imageView.imageScaling = .scaleProportionallyUpOrDown
-                imageView.translatesAutoresizingMaskIntoConstraints = false
-                cell.addSubview(imageView)
-                cell.imageView = imageView
-
-                let text = NSTextField(labelWithString: "")
-                text.identifier = NSUserInterfaceItemIdentifier("name")
-                text.font = .systemFont(ofSize: 13, weight: .medium)
-                text.lineBreakMode = .byTruncatingTail
-                text.translatesAutoresizingMaskIntoConstraints = false
-                cell.addSubview(text)
-                cell.textField = text
-
-                NSLayoutConstraint.activate([
-                    imageView.leadingAnchor.constraint(equalTo: cell.leadingAnchor, constant: 8),
-                    imageView.centerYAnchor.constraint(equalTo: cell.centerYAnchor),
-                    imageView.widthAnchor.constraint(equalToConstant: 28),
-                    imageView.heightAnchor.constraint(equalToConstant: 28),
-
-                    text.leadingAnchor.constraint(equalTo: imageView.trailingAnchor, constant: 10),
-                    text.trailingAnchor.constraint(equalTo: cell.trailingAnchor, constant: -8),
-                    text.centerYAnchor.constraint(equalTo: cell.centerYAnchor),
-                ])
-                return cell
-            }()
-
-        cell.imageView?.image = icon
-        cell.textField?.stringValue = name
-        cell.toolTip = bid
+        let id = NSUserInterfaceItemIdentifier("AppIconNameCell")
+        let cell: AppIconNameCell
+        if let reused = tableView.makeView(withIdentifier: id, owner: nil) as? AppIconNameCell {
+            cell = reused
+        } else {
+            cell = AppIconNameCell(frame: .zero)
+            cell.identifier = id
+        }
+        cell.configure(icon: icon, name: name, toolTip: bid)
         return cell
+    }
+}
+
+/// Frame-based cell. No Auto Layout inside recycled rows (avoids scroll wipe).
+final class AppIconNameCell: NSView {
+    private let iconView = NSImageView(frame: .zero)
+    private let nameField = NSTextField(labelWithString: "")
+
+    override init(frame frameRect: NSRect) {
+        super.init(frame: frameRect)
+        wantsLayer = true
+
+        iconView.imageScaling = .scaleProportionallyUpOrDown
+        iconView.imageAlignment = .alignCenter
+        addSubview(iconView)
+
+        nameField.isEditable = false
+        nameField.isBordered = false
+        nameField.drawsBackground = false
+        nameField.font = .systemFont(ofSize: 13, weight: .medium)
+        nameField.lineBreakMode = .byTruncatingTail
+        nameField.cell?.truncatesLastVisibleLine = true
+        addSubview(nameField)
+    }
+
+    @available(*, unavailable)
+    required init?(coder: NSCoder) { fatalError() }
+
+    func configure(icon: NSImage, name: String, toolTip: String) {
+        iconView.image = icon
+        nameField.stringValue = name
+        self.toolTip = toolTip
+        needsLayout = true
+    }
+
+    override func layout() {
+        super.layout()
+        let h = bounds.height
+        let icon: CGFloat = 28
+        let inset: CGFloat = 8
+        iconView.frame = NSRect(
+            x: inset,
+            y: (h - icon) / 2,
+            width: icon,
+            height: icon
+        )
+        let textX = iconView.frame.maxX + 10
+        nameField.frame = NSRect(
+            x: textX,
+            y: 0,
+            width: max(bounds.width - textX - inset, 0),
+            height: h
+        )
     }
 }
 
