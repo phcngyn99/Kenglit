@@ -1,7 +1,5 @@
 import Foundation
 
-/// Pure list model for Settings Application sections (User / Built-in).
-/// Expand/collapse + filter live here so CoreChecks can verify without AppKit.
 public struct SettingsListModel: Equatable {
     public enum Section: String, Equatable {
         case custom
@@ -80,7 +78,6 @@ public struct SettingsListModel: Equatable {
         return out
     }
 
-    /// Section owning a list row (for empty-row clicks).
     public static func sectionOwning(row: Int, in rows: [Row]) -> Section? {
         var i = row
         while i >= 0 {
@@ -90,7 +87,6 @@ public struct SettingsListModel: Equatable {
         return nil
     }
 
-    /// True when a row click should toggle a section (header or empty chrome).
     public static func handleRowClick(_ row: Int, in rows: [Row]) -> Section? {
         guard row >= 0, row < rows.count else { return nil }
         switch rows[row] {

@@ -61,7 +61,6 @@ final class AppFocusMonitor: ObservableObject {
     func evaluateNow() {
         guard preferences.isEnabled else { return }
         let frontID = NSWorkspace.shared.frontmostApplication?.bundleIdentifier
-        // Never treat ourselves as a switch target — leave layout alone while settings open
         if frontID == "dev.finn.kenglit" { return }
 
         let watched = Set(preferences.watchedBundleIDs)

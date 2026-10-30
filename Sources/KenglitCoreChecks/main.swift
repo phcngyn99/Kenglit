@@ -26,7 +26,6 @@ enum Check {
     }
 }
 
-// --- WatchedApps ---
 do {
     let set = Set(WatchedApps.defaults)
     Check.expect(set.contains("com.apple.Terminal"), "defaults contain Terminal")
@@ -46,7 +45,6 @@ do {
     )
 }
 
-// --- PreferencesStore ---
 do {
     let suite = "dev.finn.kenglit.tests.\(UUID().uuidString)"
     guard let defaults = UserDefaults(suiteName: suite) else {
@@ -78,7 +76,6 @@ do {
     Check.expect(!store.userWatchedBundleIDs.contains("com.example.App"), "remove user extra")
     Check.expect(!store.watchedBundleIDs.contains("com.example.App"), "gone from effective")
 
-    // Built-in removal persists as exclusion
     store.removeWatchedBundleID("com.apple.Terminal")
     Check.expect(store.excludedBuiltInBundleIDs.contains("com.apple.Terminal"), "builtin excluded")
     Check.expect(!store.watchedBundleIDs.contains("com.apple.Terminal"), "excluded gone from effective")
@@ -88,7 +85,6 @@ do {
     Check.expect(reloaded2.excludedBuiltInBundleIDs.contains("com.apple.Terminal"), "exclusion persists")
     Check.expect(!reloaded2.watchedBundleIDs.contains("com.apple.Terminal"), "persisted exclusion effective")
 
-    // Re-add restores membership without duplicate
     store.addWatchedBundleID("com.apple.Terminal")
     Check.expect(!store.excludedBuiltInBundleIDs.contains("com.apple.Terminal"), "re-add clears exclusion")
     Check.expect(store.watchedBundleIDs.contains("com.apple.Terminal"), "re-add effective")
@@ -111,7 +107,6 @@ do {
     defaults.removePersistentDomain(forName: suite)
 }
 
-// --- FocusPolicy two-way ---
 do {
     let watched: Set<String> = ["com.apple.Terminal", "com.microsoft.VSCode"]
 
@@ -147,7 +142,6 @@ do {
     )
 }
 
-// --- EnglishSourceResolver ---
 do {
     Check.equal(
         EnglishSourceResolver.resolvePreferredID(
@@ -167,7 +161,6 @@ do {
     )
 }
 
-// --- VietnameseSourceResolver ---
 do {
     Check.equal(
         VietnameseSourceResolver.resolvePreferredID(
@@ -198,7 +191,6 @@ do {
     )
 }
 
-// --- SettingsListModel: User / Built-in expand & collapse ---
 do {
     var model = SettingsListModel()
     let custom = ["com.example.Chrome"]

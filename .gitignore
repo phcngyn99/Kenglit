@@ -1,26 +1,17 @@
-# Swift / Xcode
 .build/
 DerivedData/
 *.xcodeproj/xcuserdata/
 *.xcuserstate
 .swiftpm/xcode/package.xcworkspace/xcuserdata/
 
-# Packaging outputs (regenerate with Scripts/)
 dist/
-Kenglit-*.dmg
-
-# Icons source set (compiled icns is tracked)
 Resources/AppIcon.iconset/
 
-# Local / agent scratch
 tmp/
 .superpowers/
 .worktrees/
 worktrees/
-
-# CodeGraph local index
 .codegraph/
 
-# OS
 .DS_Store
 **/.DS_Store
