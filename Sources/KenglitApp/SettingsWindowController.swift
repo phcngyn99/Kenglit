@@ -10,8 +10,13 @@ final class SettingsWindowController: NSWindowController {
     private var loginButton: NSButton!
     private var errorLabel: NSTextField!
     var onClose: (() -> Void)?
-    /// Snapshot used by the table so scroll/recycle never reads a moving target.
-    private var rows: [String] = []
+    /// Snapshot rows so scroll/recycle never reads a moving target.
+    private var displayRows: [SettingsRow] = []
+
+    private enum SettingsRow {
+        case header(title: String, subtitle: String)
+        case app(bundleID: String, isUser: Bool)
+    }
 
     init(preferences: PreferencesStore) {
         self.preferences = preferences
@@ -135,8 +140,28 @@ final class SettingsWindowController: NSWindowController {
     }
 
     private func reloadTable() {
-        // Defaults hidden — only user-added EN apps shown.
-        rows = preferences.userWatchedBundleIDs
+        let user = preferences.userWatchedBundleIDs
+        let builtin = WatchedApps.defaults
+        var next: [SettingsRow] = []
+
+        // User first (editable)
+        next.append(.header(
+            title: "Yours",
+            subtitle: user.isEmpty ? "none yet" : "\(user.count)"
+        ))
+        for bid in user {
+            next.append(.app(bundleID: bid, isUser: true))
+        }
+
+        next.append(.header(
+            title: "Default",
+            subtitle: "\(builtin.count) · always EN"
+        ))
+        for bid in builtin {
+            next.append(.app(bundleID: bid, isUser: false))
+        }
+
+        displayRows = next
         table.reloadData()
         enabledButton.state = preferences.isEnabled ? .on : .off
         loginButton.state = preferences.launchAtLogin ? .on : .off
@@ -162,22 +187,39 @@ final class SettingsWindowController: NSWindowController {
     @objc private func removeSelected() {
         let selected = table.selectedRowIndexes
         guard !selected.isEmpty else { return }
-        let removeIDs = selected.compactMap { idx -> String? in
-            guard idx >= 0, idx < rows.count else { return nil }
-            return rows[idx]
+        let removeIDs: [String] = selected.compactMap { idx in
+            guard idx >= 0, idx < displayRows.count else { return nil }
+            if case let .app(bid, isUser) = displayRows[idx], isUser {
+                return bid
+            }
+            return nil
         }
-        guard !removeIDs.isEmpty else { return }
+        guard !removeIDs.isEmpty else {
+            errorLabel.textColor = .secondaryLabelColor
+            errorLabel.stringValue = "Default locked"
+            return
+        }
         let removeSet = Set(removeIDs)
         let next = preferences.userWatchedBundleIDs.filter { !removeSet.contains($0) }
         preferences.setUserWatchedBundleIDs(next)
         reloadTable()
         NotificationCenter.default.post(name: .kenglitPrefsChanged, object: nil)
+        errorLabel.textColor = .secondaryLabelColor
+        errorLabel.stringValue = "−\(removeIDs.count)"
     }
 
     @objc private func addFrontmost() {
         guard let app = NSWorkspace.shared.frontmostApplication,
               let id = app.bundleIdentifier,
               id != "dev.finn.kenglit" else { return }
+        if WatchedApps.defaults.contains(id) {
+            reloadTable()
+            scrollToBundleID(id)
+            errorLabel.textColor = .secondaryLabelColor
+            errorLabel.stringValue = "Default"
+            return
+        }
+        let before = Set(preferences.userWatchedBundleIDs)
         preferences.addWatchedBundleID(id)
         if let name = app.localizedName, !name.isEmpty {
             WatchedAppsUserNames.set(name, for: id)
@@ -186,7 +228,7 @@ final class SettingsWindowController: NSWindowController {
         scrollToBundleID(id)
         NotificationCenter.default.post(name: .kenglitPrefsChanged, object: nil)
         errorLabel.textColor = .secondaryLabelColor
-        errorLabel.stringValue = "+1"
+        errorLabel.stringValue = before.contains(id) ? "None new" : "+1"
     }
 
     @objc private func pickFromApplications() {
@@ -275,7 +317,10 @@ final class SettingsWindowController: NSWindowController {
     }
 
     private func scrollToBundleID(_ id: String) {
-        if let idx = rows.firstIndex(of: id) {
+        if let idx = displayRows.firstIndex(where: {
+            if case let .app(bid, _) = $0 { return bid == id }
+            return false
+        }) {
             table.scrollRowToVisible(idx)
             table.selectRowIndexes(IndexSet(integer: idx), byExtendingSelection: false)
         }
@@ -413,29 +458,109 @@ extension SettingsWindowController: NSWindowDelegate {
 
 extension SettingsWindowController: NSTableViewDataSource, NSTableViewDelegate {
     func numberOfRows(in tableView: NSTableView) -> Int {
-        rows.count
+        displayRows.count
     }
 
     func tableView(_ tableView: NSTableView, heightOfRow row: Int) -> CGFloat {
-        40
+        guard row >= 0, row < displayRows.count else { return 40 }
+        switch displayRows[row] {
+        case .header: return 28
+        case .app: return 40
+        }
+    }
+
+    func tableView(_ tableView: NSTableView, isGroupRow row: Int) -> Bool {
+        guard row >= 0, row < displayRows.count else { return false }
+        if case .header = displayRows[row] { return true }
+        return false
+    }
+
+    func tableView(_ tableView: NSTableView, shouldSelectRow row: Int) -> Bool {
+        guard row >= 0, row < displayRows.count else { return false }
+        switch displayRows[row] {
+        case .header:
+            return false
+        case .app(_, let isUser):
+            return isUser
+        }
     }
 
     func tableView(_ tableView: NSTableView, viewFor tableColumn: NSTableColumn?, row: Int) -> NSView? {
-        guard row >= 0, row < rows.count else { return nil }
-        let bid = rows[row]
-        let name = Self.friendlyName(for: bid)
-        let icon = Self.appIcon(for: bid)
+        guard row >= 0, row < displayRows.count else { return nil }
+        switch displayRows[row] {
+        case let .header(title, subtitle):
+            let id = NSUserInterfaceItemIdentifier("SectionHeaderCell")
+            let cell: SectionHeaderCell
+            if let reused = tableView.makeView(withIdentifier: id, owner: nil) as? SectionHeaderCell {
+                cell = reused
+            } else {
+                cell = SectionHeaderCell(frame: .zero)
+                cell.identifier = id
+            }
+            cell.configure(title: title, subtitle: subtitle)
+            return cell
 
-        let id = NSUserInterfaceItemIdentifier("AppIconNameCell")
-        let cell: AppIconNameCell
-        if let reused = tableView.makeView(withIdentifier: id, owner: nil) as? AppIconNameCell {
-            cell = reused
-        } else {
-            cell = AppIconNameCell(frame: .zero)
-            cell.identifier = id
+        case let .app(bid, isUser):
+            let name = Self.friendlyName(for: bid)
+            let icon = Self.appIcon(for: bid)
+            let id = NSUserInterfaceItemIdentifier("AppIconNameCell")
+            let cell: AppIconNameCell
+            if let reused = tableView.makeView(withIdentifier: id, owner: nil) as? AppIconNameCell {
+                cell = reused
+            } else {
+                cell = AppIconNameCell(frame: .zero)
+                cell.identifier = id
+            }
+            cell.configure(icon: icon, name: name, toolTip: bid, dimmed: !isUser)
+            return cell
         }
-        cell.configure(icon: icon, name: name, toolTip: bid)
-        return cell
+    }
+}
+
+/// Section header row (Default / Yours).
+final class SectionHeaderCell: NSView {
+    private let titleField = NSTextField(labelWithString: "")
+    private let subField = NSTextField(labelWithString: "")
+
+    override init(frame frameRect: NSRect) {
+        super.init(frame: frameRect)
+        wantsLayer = true
+
+        titleField.isEditable = false
+        titleField.isBordered = false
+        titleField.drawsBackground = false
+        titleField.backgroundColor = .clear
+        titleField.font = .systemFont(ofSize: 11, weight: .semibold)
+        titleField.textColor = .secondaryLabelColor
+        addSubview(titleField)
+
+        subField.isEditable = false
+        subField.isBordered = false
+        subField.drawsBackground = false
+        subField.backgroundColor = .clear
+        subField.font = .systemFont(ofSize: 11, weight: .regular)
+        subField.textColor = .tertiaryLabelColor
+        subField.alignment = .right
+        addSubview(subField)
+    }
+
+    @available(*, unavailable)
+    required init?(coder: NSCoder) { fatalError() }
+
+    func configure(title: String, subtitle: String) {
+        titleField.stringValue = title.uppercased()
+        subField.stringValue = subtitle
+        needsLayout = true
+    }
+
+    override func layout() {
+        super.layout()
+        let h = max(bounds.height, 28)
+        let w = max(bounds.width, 120)
+        let inset: CGFloat = 10
+        titleField.frame = NSRect(x: inset, y: 0, width: w * 0.55, height: h)
+        let subW = w * 0.4
+        subField.frame = NSRect(x: w - subW - inset, y: 0, width: subW, height: h)
     }
 }
 
@@ -473,9 +598,11 @@ final class AppIconNameCell: NSTableCellView {
     @available(*, unavailable)
     required init?(coder: NSCoder) { fatalError() }
 
-    func configure(icon: NSImage, name: String, toolTip: String) {
+    func configure(icon: NSImage, name: String, toolTip: String, dimmed: Bool = false) {
         iconView.image = icon
+        iconView.alphaValue = dimmed ? 0.55 : 1.0
         nameField.stringValue = name
+        nameField.textColor = dimmed ? .secondaryLabelColor : .labelColor
         self.toolTip = toolTip
         needsLayout = true
         layoutSubtreeIfNeeded()
