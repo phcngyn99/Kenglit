@@ -25,20 +25,12 @@ final class SettingsWindowController: NSWindowController {
     private var loginSwitch: NSSwitch!
     private var statusLabel: NSTextField!
     private var searchField: NSSearchField!
-    private var table: NSTableView!
-    private var displayRows: [Row] = []
-    private var customExpanded = true
-    private var builtInExpanded = true
-    private var filter = ""
+    private var table: SettingsTableView!
+    private var displayRows: [SettingsListModel.Row] = []
+    private var listModel = SettingsListModel()
+    private var lastSectionToggleAt: CFAbsoluteTime = 0
     private var iconCache: [String: NSImage] = [:]
     var onClose: (() -> Void)?
-
-    private enum Section { case custom, builtIn }
-    private enum Row {
-        case header(Section, title: String, expanded: Bool)
-        case app(bundleID: String, removable: Bool)
-        case empty(String)
-    }
 
     init(preferences: PreferencesStore) {
         self.preferences = preferences
@@ -98,12 +90,12 @@ final class SettingsWindowController: NSWindowController {
         let appsTitle = sectionLabel("Applications")
         root.addSubview(appsTitle)
 
-        let addBtn = textButton("Add", action: #selector(addApplications))
-        addBtn.toolTip = "Choose apps that should use English"
+        let addBtn = textButton("Enforce English App", action: #selector(addApplications))
+        addBtn.toolTip = "Choose an app that should stay English"
         root.addSubview(addBtn)
 
         searchField = NSSearchField()
-        searchField.placeholderString = "Search"
+        searchField.placeholderString = "Search enforced apps"
         searchField.translatesAutoresizingMaskIntoConstraints = false
         searchField.target = self
         searchField.action = #selector(searchChanged)
@@ -121,7 +113,7 @@ final class SettingsWindowController: NSWindowController {
         scroll.wantsLayer = true
         scroll.layer?.cornerRadius = 6
 
-        table = NSTableView()
+        table = SettingsTableView()
         table.headerView = nil
         table.rowHeight = SettingsUI.rowH
         table.allowsMultipleSelection = false
@@ -137,6 +129,17 @@ final class SettingsWindowController: NSWindowController {
         table.addTableColumn(col)
         table.dataSource = self
         table.delegate = self
+        table.sectionRowCheck = { [weak self] row -> Bool in
+            guard let self, row >= 0, row < self.displayRows.count else { return false }
+            switch self.displayRows[row] {
+            case .header, .empty: return true
+            case .app: return false
+            }
+        }
+        table.onSectionClick = { [weak self] row in
+            guard let self else { return }
+            _ = self.handleTableRowClick(row)
+        }
         scroll.documentView = table
         root.addSubview(scroll)
 
@@ -260,37 +263,11 @@ final class SettingsWindowController: NSWindowController {
     private func reload() {
         enabledSwitch.state = preferences.isEnabled ? .on : .off
         loginSwitch.state = preferences.launchAtLogin ? .on : .off
-
-        let q = filter.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
-        func match(_ bid: String) -> Bool {
-            guard !q.isEmpty else { return true }
-            return Self.friendlyName(for: bid).lowercased().contains(q)
-                || bid.lowercased().contains(q)
-        }
-
-        let custom = preferences.userWatchedBundleIDs.filter(match)
-        let builtIn = preferences.activeBuiltInBundleIDs.filter(match)
-        var rows: [Row] = []
-
-        rows.append(.header(.custom, title: "User Apps", expanded: customExpanded))
-        if customExpanded {
-            if custom.isEmpty {
-                rows.append(.empty(q.isEmpty ? "No user apps added." : "No matching applications."))
-            } else {
-                for bid in custom { rows.append(.app(bundleID: bid, removable: true)) }
-            }
-        }
-
-        rows.append(.header(.builtIn, title: "Built-in Apps", expanded: builtInExpanded))
-        if builtInExpanded {
-            if builtIn.isEmpty {
-                rows.append(.empty(q.isEmpty ? "No built-in apps." : "No matching applications."))
-            } else {
-                for bid in builtIn { rows.append(.app(bundleID: bid, removable: true)) }
-            }
-        }
-
-        displayRows = rows
+        displayRows = listModel.rows(
+            customIDs: preferences.userWatchedBundleIDs,
+            builtInIDs: preferences.activeBuiltInBundleIDs,
+            name: Self.friendlyName(for:)
+        )
         table.reloadData()
     }
 
@@ -313,29 +290,23 @@ final class SettingsWindowController: NSWindowController {
     }
 
     @objc private func searchChanged() {
-        filter = searchField.stringValue
-        expandSectionsMatchingSearch()
+        listModel.filter = searchField.stringValue
+        listModel.expandSectionsMatching(
+            customIDs: preferences.userWatchedBundleIDs,
+            builtInIDs: preferences.activeBuiltInBundleIDs,
+            name: Self.friendlyName(for:)
+        )
         reload()
-    }
-
-    /// Expand sections that contain the current query so Enter / typing reveals hits.
-    private func expandSectionsMatchingSearch() {
-        let q = filter.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
-        guard !q.isEmpty else { return }
-        func match(_ bid: String) -> Bool {
-            Self.friendlyName(for: bid).lowercased().contains(q) || bid.lowercased().contains(q)
-        }
-        if preferences.userWatchedBundleIDs.contains(where: match) {
-            customExpanded = true
-        }
-        if preferences.activeBuiltInBundleIDs.contains(where: match) {
-            builtInExpanded = true
-        }
     }
 
     @objc private func showAbout(_ sender: Any?) {
         let anchor = (sender as? NSView) ?? window?.contentView
         guard let anchor else { return }
+        let short = Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String ?? "0.1.0-beta"
+        let build = Bundle.main.object(forInfoDictionaryKey: "CFBundleVersion") as? String ?? "2"
+        let bid = Bundle.main.bundleIdentifier ?? "dev.finn.kenglit"
+        let minOS = Bundle.main.object(forInfoDictionaryKey: "LSMinimumSystemVersion") as? String ?? "13.0"
+        let channel = Bundle.main.object(forInfoDictionaryKey: "KenglitReleaseChannel") as? String ?? "beta"
         HelpPopover.shared.show(
             relativeTo: anchor.bounds,
             of: anchor,
@@ -350,6 +321,16 @@ final class SettingsWindowController: NSWindowController {
 
             Other apps
             Switch to Vietnamese when focus leaves a listed app.
+
+            Version
+            \(short) (\(build)) · \(channel)
+            Bundle  \(bid)
+            Requires macOS \(minOS)+
+
+            This is a beta build. Behavior and the factory app list may change.
+
+            Author
+            Finn Nguyen × Hawking
             """
         )
     }
@@ -362,8 +343,8 @@ final class SettingsWindowController: NSWindowController {
 
     @objc private func addApplications() {
         let panel = NSOpenPanel()
-        panel.title = "Choose Applications"
-        panel.prompt = "Add"
+        panel.title = "Enforce English on App"
+        panel.prompt = "Enforce"
         panel.canChooseFiles = true
         panel.canChooseDirectories = false
         panel.allowsMultipleSelection = true
@@ -416,21 +397,30 @@ final class SettingsWindowController: NSWindowController {
         alert.addButton(withTitle: "Cancel")
         guard alert.runModal() == .alertFirstButtonReturn else { return }
         preferences.restoreDefaultApplications()
-        filter = ""
+        listModel.filter = ""
         searchField.stringValue = ""
-        customExpanded = true
-        builtInExpanded = true
+        listModel.customExpanded = true
+        listModel.builtInExpanded = true
         reload()
         NotificationCenter.default.post(name: .kenglitPrefsChanged, object: nil)
         statusLabel.stringValue = ""
     }
 
-    private func toggleSection(_ section: Section) {
-        switch section {
-        case .custom: customExpanded.toggle()
-        case .builtIn: builtInExpanded.toggle()
-        }
+    private func toggleSection(_ section: SettingsListModel.Section) {
+        // Guard double-delivery (cell + table both see same click).
+        let now = CFAbsoluteTimeGetCurrent()
+        if now - lastSectionToggleAt < 0.2 { return }
+        lastSectionToggleAt = now
+        listModel.toggle(section)
         reload()
+    }
+
+    fileprivate func handleTableRowClick(_ row: Int) -> Bool {
+        guard let section = SettingsListModel.handleRowClick(row, in: displayRows) else {
+            return false
+        }
+        toggleSection(section)
+        return true
     }
 
     private static func bundleID(fromAppURL url: URL) -> String? {
@@ -620,9 +610,7 @@ extension SettingsWindowController: NSWindowDelegate {
 extension SettingsWindowController: NSSearchFieldDelegate {
     func control(_ control: NSControl, textView: NSTextView, doCommandBy commandSelector: Selector) -> Bool {
         if commandSelector == #selector(NSResponder.insertNewline(_:)) {
-            filter = searchField.stringValue
-            expandSectionsMatchingSearch()
-            reload()
+            searchChanged()
             return true
         }
         return false
@@ -663,9 +651,13 @@ extension SettingsWindowController: NSTableViewDataSource, NSTableViewDelegate {
             let cell = (tableView.makeView(withIdentifier: id, owner: nil) as? EmptyHintCell)
                 ?? EmptyHintCell(frame: .zero)
             cell.identifier = id
-            cell.configure(msg)
+            let section = SettingsListModel.sectionOwning(row: row, in: displayRows)
+            cell.configure(msg) { [weak self] in
+                guard let self, let section else { return }
+                self.toggleSection(section)
+            }
             return cell
-        case let .app(bid, _):
+        case let .app(bid):
             let id = NSUserInterfaceItemIdentifier("app")
             let cell = (tableView.makeView(withIdentifier: id, owner: nil) as? AppRowCell)
                 ?? AppRowCell(frame: .zero)
@@ -684,61 +676,104 @@ extension SettingsWindowController: NSTableViewDataSource, NSTableViewDelegate {
     }
 }
 
+final class SettingsTableView: NSTableView {
+    var sectionRowCheck: ((Int) -> Bool)?
+    var onSectionClick: ((Int) -> Void)?
+
+    override func hitTest(_ point: NSPoint) -> NSView? {
+        // point is in the superview coordinate system (AppKit).
+        let local = convert(point, from: superview)
+        let r = row(at: local)
+        if r >= 0, sectionRowCheck?(r) == true {
+            return self
+        }
+        return super.hitTest(point)
+    }
+
+    override func acceptsFirstMouse(for event: NSEvent?) -> Bool { true }
+
+    override func mouseDown(with event: NSEvent) {
+        let local = convert(event.locationInWindow, from: nil)
+        let r = row(at: local)
+        if r >= 0, sectionRowCheck?(r) == true {
+            onSectionClick?(r)
+            return
+        }
+        super.mouseDown(with: event)
+    }
+}
+
 final class SectionHeaderCell: NSView {
     private let chevron = NSImageView(frame: .zero)
-    private let title = NSTextField(labelWithString: "")
-    private var onToggle: (() -> Void)?
+    private let titleLabel = NSTextField(labelWithString: "")
 
     override init(frame frameRect: NSRect) {
         super.init(frame: frameRect)
+        wantsLayer = true
         chevron.contentTintColor = .secondaryLabelColor
         addSubview(chevron)
-        title.font = .systemFont(ofSize: 11, weight: .semibold)
-        title.textColor = .secondaryLabelColor
-        title.lineBreakMode = .byTruncatingTail
-        addSubview(title)
+        titleLabel.font = .systemFont(ofSize: 11, weight: .semibold)
+        titleLabel.textColor = .secondaryLabelColor
+        titleLabel.isEditable = false
+        titleLabel.isSelectable = false
+        titleLabel.isBordered = false
+        titleLabel.drawsBackground = false
+        titleLabel.refusesFirstResponder = true
+        addSubview(titleLabel)
     }
     @available(*, unavailable) required init?(coder: NSCoder) { fatalError() }
-    func configure(title text: String, expanded: Bool, onToggle: @escaping () -> Void) {
-        self.onToggle = onToggle
-        title.stringValue = text
+
+    func configure(title text: String, expanded: Bool, onToggle: @escaping () -> Void = {}) {
+        _ = onToggle
+        titleLabel.stringValue = text
+        let conf = NSImage.SymbolConfiguration(pointSize: 9, weight: .bold)
         let sym = expanded ? "chevron.down" : "chevron.right"
-        if let b = NSImage(systemSymbolName: sym, accessibilityDescription: "Toggle") {
-            chevron.image = b.withSymbolConfiguration(.init(pointSize: 9, weight: .bold)) ?? b
+        if let img = NSImage(systemSymbolName: sym, accessibilityDescription: nil) {
+            chevron.image = img.withSymbolConfiguration(conf) ?? img
         }
-        setAccessibilityLabel(text)
-        setAccessibilityRole(.button)
+        toolTip = (expanded ? "Collapse " : "Expand ") + text
         needsLayout = true
     }
-    override func acceptsFirstMouse(for event: NSEvent?) -> Bool { true }
-    override func mouseDown(with event: NSEvent) {
-        onToggle?()
-    }
+
     override func layout() {
         super.layout()
         let h = max(bounds.height, SettingsUI.headerH)
-        let w = max(bounds.width, 120)
         let c: CGFloat = 11
         chevron.frame = NSRect(x: 8, y: floor((h - c) / 2), width: c, height: c)
-        title.frame = NSRect(x: 8 + c + 6, y: floor((h - 14) / 2), width: max(w - 40, 40), height: 14)
+        titleLabel.frame = NSRect(x: 25, y: floor((h - 14) / 2), width: max(bounds.width - 36, 40), height: 14)
     }
 }
 
 final class EmptyHintCell: NSView {
     private let label = NSTextField(labelWithString: "")
+
     override init(frame frameRect: NSRect) {
         super.init(frame: frameRect)
         label.font = .systemFont(ofSize: 11)
         label.textColor = .tertiaryLabelColor
-        label.lineBreakMode = .byTruncatingTail
+        label.isEditable = false
+        label.isSelectable = false
+        label.isBordered = false
+        label.drawsBackground = false
+        label.refusesFirstResponder = true
         addSubview(label)
     }
     @available(*, unavailable) required init?(coder: NSCoder) { fatalError() }
-    func configure(_ text: String) { label.stringValue = text; needsLayout = true }
+
+    func configure(_ text: String, onCollapse: (() -> Void)? = nil) {
+        _ = onCollapse
+        label.stringValue = text
+        needsLayout = true
+    }
+
     override func layout() {
         super.layout()
-        label.frame = NSRect(x: SettingsUI.iconPad + SettingsUI.icon + 8, y: 0,
-                             width: max(bounds.width - 40, 40), height: bounds.height)
+        label.frame = NSRect(
+            x: SettingsUI.iconPad + SettingsUI.icon + 8,
+            y: 0,
+            width: max(bounds.width - 40, 40),
+            height: bounds.height
+        )
     }
 }
 
