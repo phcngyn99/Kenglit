@@ -31,31 +31,18 @@ Repo root file (version is inside the app / About, not the filename):
 
     open /Users/FinNguyen/Work/not-finn/kenglish/Kenglit.dmg
 
-1. Double-click **`Kenglit.dmg`** (window + **1. READ ME FIRST.txt** open)
+1. Open **`Kenglit.dmg`** — window shows steps 1–3
 2. Drag **Kenglit** → **Applications**
-3. Eject the DMG
-4. First launch (see Gatekeeper below) — **right-click Open**, not double-click
-5. Menu bar icon → **On**
+3. First open: **right-click Kenglit → Open → Open** (see window / **Install Guide.txt**)
+4. Menu bar → **On**
 
-Install location: **`/Applications/Kenglit.app`**. Version: Settings → ⓘ.
+### Gatekeeper (new Mac)
 
-### Gatekeeper (“Apple could not verify…”)
+Ad-hoc beta — not notarized. Warning is normal.
 
-Beta builds are **ad-hoc signed**, not Apple-notarized. First open often shows:
-
-> Apple could not verify “Kenglit” is free of malware that may harm your Mac or compromise your privacy.
-
-**Fix (pick one):**
-
-1. Finder → Applications → **right-click Kenglit** → **Open** → **Open**
-2. Or: System Settings → **Privacy & Security** → scroll to Security → **Open Anyway** → confirm
-3. If it was blocked after a browser download:
-
-       xattr -cr /Applications/Kenglit.app
-
-   Then right-click → **Open** again.
-
-This is expected until a Developer ID + notarized release ships.
+- **Right-click** Applications → Kenglit → **Open** → **Open**
+- Or Privacy & Security → **Open Anyway**
+- After download, if stuck: `xattr -cr /Applications/Kenglit.app` then right-click Open
 
 ### From source
 
