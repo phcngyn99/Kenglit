@@ -133,7 +133,6 @@ final class StatusItemController: NSObject, NSMenuDelegate {
     }
 
     @objc func openSettings() {
-        // Temporarily regular so window reliably comes front from Applications click.
         NSApp.setActivationPolicy(.regular)
         NSApp.activate(ignoringOtherApps: true)
 
@@ -144,7 +143,6 @@ final class StatusItemController: NSObject, NSMenuDelegate {
         settingsController?.window?.makeKeyAndOrderFront(nil)
         NSApp.activate(ignoringOtherApps: true)
 
-        // Stay regular while Settings is open so it stays usable; restore when closed.
         settingsController?.onClose = { [weak self] in
             NSApp.setActivationPolicy(.accessory)
             self?.settingsController = nil
@@ -156,7 +154,6 @@ final class StatusItemController: NSObject, NSMenuDelegate {
     }
 }
 
-/// Menu bar template icon (system-tinted for light/dark bar).
 enum MenuBarIcon {
     static func make(enabled: Bool, size: CGFloat = 18) -> NSImage {
         let final = NSImage(size: NSSize(width: size, height: size), flipped: false) { rect in
@@ -165,7 +162,6 @@ enum MenuBarIcon {
             let radius = size * 0.22
             let border = NSBezierPath(roundedRect: box, xRadius: radius, yRadius: radius)
 
-            // Draw black; isTemplate makes menu bar tint it.
             NSColor.black.setStroke()
             NSColor.black.setFill()
 

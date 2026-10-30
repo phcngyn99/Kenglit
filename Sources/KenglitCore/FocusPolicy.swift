@@ -13,13 +13,11 @@ public struct FocusDecision: Equatable {
         self.reason = reason
     }
 
-    /// Backward-compatible helper for tests / call sites that only care about EN.
     public var shouldSwitchToEnglish: Bool { action == .switchToEnglish }
     public var shouldSwitchToVietnamese: Bool { action == .switchToVietnamese }
 }
 
 public enum FocusPolicy {
-    /// Watched apps → English. Everything else (when enabled) → Vietnamese.
     public static func decide(
         isEnabled: Bool,
         frontBundleID: String?,
@@ -41,7 +39,6 @@ public enum FocusPolicy {
             return FocusDecision(action: .switchToEnglish, reason: "watched-needs-english")
         }
 
-        // Outside watched apps: force Vietnamese
         if currentIsVietnamese {
             return FocusDecision(action: .none, reason: "unwatched-already-vietnamese")
         }

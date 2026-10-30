@@ -14,4 +14,3 @@ cp "$ROOT/Resources/Logo/kenglitTemplate@2x.png" "$OUT/Contents/Resources/walt.e
 chmod +x "$OUT/Contents/MacOS/Kenglit"
 codesign --force --deep --sign - "$OUT" 2>/dev/null || true
 echo "Built: $OUT"
-echo "Run: open \"$OUT\""

@@ -1,6 +1,5 @@
 import Foundation
 
-/// Remember display names for apps the user adds by file pick / frontmost.
 public enum WatchedAppsUserNames {
     private static let key = "watchedAppDisplayNames"
     private static var defaults: UserDefaults { .standard }

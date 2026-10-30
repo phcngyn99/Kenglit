@@ -407,7 +407,6 @@ final class SettingsWindowController: NSWindowController {
     }
 
     private func toggleSection(_ section: SettingsListModel.Section) {
-        // Guard double-delivery (cell + table both see same click).
         let now = CFAbsoluteTimeGetCurrent()
         if now - lastSectionToggleAt < 0.2 { return }
         lastSectionToggleAt = now
@@ -464,7 +463,6 @@ final class SettingsWindowController: NSWindowController {
            FileManager.default.fileExists(atPath: url.path) {
             let source = NSWorkspace.shared.icon(forFile: url.path)
             let rendered = rasterize(source, to: point)
-            // Real apps have rich icons; blank-ish placeholders fail the variance check.
             if iconLooksReal(rendered) {
                 return rendered
             }
@@ -473,7 +471,6 @@ final class SettingsWindowController: NSWindowController {
         return genericAppIcon(size: point)
     }
 
-    /// True when icon has enough non-flat content to look like a real app mark.
     private static func iconLooksReal(_ image: NSImage) -> Bool {
         guard let tiff = image.tiffRepresentation,
               let rep = NSBitmapImageRep(data: tiff),
@@ -493,17 +490,15 @@ final class SettingsWindowController: NSWindowController {
                 let a = spp >= 4 ? Int(data[i + 3]) : 255
                 if a < 24 { continue }
                 opaque += 1
-                samples.append(data[i]) // R approx
+                samples.append(data[i])
             }
         }
         guard opaque >= 6, samples.count >= 4 else { return false }
         let minV = samples.min() ?? 0
         let maxV = samples.max() ?? 0
-        // Flat gray workspace placeholders usually have almost no variance.
         return Int(maxV) - Int(minV) >= 18
     }
 
-    /// Distinct generic application mark — never an empty/black/gray square.
     private static func genericAppIcon(size point: NSSize) -> NSImage {
         let scale = NSScreen.main?.backingScaleFactor ?? 2
         let pxW = max(Int(point.width * scale), 1)
@@ -531,7 +526,6 @@ final class SettingsWindowController: NSWindowController {
             NSColor.clear.setFill()
             bounds.fill()
 
-            // Transparent canvas + monochrome SF Symbol only (no plate square).
             if let base = NSImage(systemSymbolName: "app.dashed", accessibilityDescription: nil)
                 ?? NSImage(systemSymbolName: "app", accessibilityDescription: nil)
                 ?? NSImage(systemSymbolName: "app.fill", accessibilityDescription: nil) {
@@ -581,7 +575,6 @@ final class SettingsWindowController: NSWindowController {
         NSGraphicsContext.saveGraphicsState()
         if let ctx = NSGraphicsContext(bitmapImageRep: rep) {
             NSGraphicsContext.current = ctx
-            // Clear to transparent first
             NSColor.clear.setFill()
             NSRect(origin: .zero, size: point).fill()
             source.draw(
@@ -681,7 +674,6 @@ final class SettingsTableView: NSTableView {
     var onSectionClick: ((Int) -> Void)?
 
     override func hitTest(_ point: NSPoint) -> NSView? {
-        // point is in the superview coordinate system (AppKit).
         let local = convert(point, from: superview)
         let r = row(at: local)
         if r >= 0, sectionRowCheck?(r) == true {

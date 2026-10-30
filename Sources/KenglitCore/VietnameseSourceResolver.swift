@@ -1,5 +1,4 @@
 public enum VietnameseSourceResolver {
-    /// Prefer Telex simple IM (common macOS default), then other vi sources.
     public static let preferredIDs: [String] = [
         "com.apple.inputmethod.VietnameseIM.VietnameseSimpleTelex",
         "com.apple.inputmethod.VietnameseIM.VietnameseTelex",

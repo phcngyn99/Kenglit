@@ -3,7 +3,6 @@ import KenglitCore
 
 private let showUINotification = Notification.Name("dev.finn.kenglit.showUI")
 
-/// Owns long-lived objects so menu bar status item never deallocates.
 @MainActor
 final class AppRuntime {
     static let shared = AppRuntime()
@@ -33,7 +32,6 @@ final class AppRuntime {
             }
         }
 
-        // Another process asked us to show UI (user clicked Kenglit.app again).
         showUIObserver = DistributedNotificationCenter.default().addObserver(
             forName: showUINotification,
             object: nil,
@@ -50,12 +48,8 @@ final class AppRuntime {
     }
 }
 
-/// Finder / Applications click opens Settings so user can reach app
-/// even when menu-bar icon is hidden/crowded.
 final class AppDelegate: NSObject, NSApplicationDelegate {
     func applicationDidFinishLaunching(_ notification: Notification) {
-        // Always show Settings on manual launch from Applications/Finder.
-        // Login-item launches include --as-login-item arg (set via LaunchAtLogin wrapper if any).
         let args = ProcessInfo.processInfo.arguments
         let loginLaunch = args.contains("--as-login-item")
         if !loginLaunch {
@@ -78,7 +72,6 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 @main
 enum KenglitMain {
     static func main() {
-        // Single instance: if already running, ask it to show UI and exit.
         let myPID = ProcessInfo.processInfo.processIdentifier
         let others = NSRunningApplication.runningApplications(withBundleIdentifier: "dev.finn.kenglit")
             .filter { $0.processIdentifier != myPID }
@@ -89,7 +82,6 @@ enum KenglitMain {
                 userInfo: nil,
                 deliverImmediately: true
             )
-            // Give peer a moment to receive.
             usleep(150_000)
             return
         }
@@ -101,7 +93,6 @@ enum KenglitMain {
 
         app.setActivationPolicy(.accessory)
 
-        // Permanent retain — DO NOT drop this reference.
         _ = AppRuntime.shared
 
         app.run()
