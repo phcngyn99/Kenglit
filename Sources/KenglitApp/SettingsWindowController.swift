@@ -135,7 +135,8 @@ final class SettingsWindowController: NSWindowController {
     }
 
     private func reloadTable() {
-        rows = preferences.watchedBundleIDs
+        // Defaults hidden — only user-added EN apps shown.
+        rows = preferences.userWatchedBundleIDs
         table.reloadData()
         enabledButton.state = preferences.isEnabled ? .on : .off
         loginButton.state = preferences.launchAtLogin ? .on : .off
@@ -167,8 +168,8 @@ final class SettingsWindowController: NSWindowController {
         }
         guard !removeIDs.isEmpty else { return }
         let removeSet = Set(removeIDs)
-        let next = preferences.watchedBundleIDs.filter { !removeSet.contains($0) }
-        preferences.setWatchedBundleIDs(next)
+        let next = preferences.userWatchedBundleIDs.filter { !removeSet.contains($0) }
+        preferences.setUserWatchedBundleIDs(next)
         reloadTable()
         NotificationCenter.default.post(name: .kenglitPrefsChanged, object: nil)
     }
@@ -226,7 +227,7 @@ final class SettingsWindowController: NSWindowController {
                 continue
             }
             if bid == "dev.finn.kenglit" { continue }
-            let before = Set(preferences.watchedBundleIDs)
+            let before = Set(preferences.userWatchedBundleIDs)
             preferences.addWatchedBundleID(bid)
             let name = FileManager.default.displayName(atPath: url.path)
                 .replacingOccurrences(of: ".app", with: "")
@@ -266,10 +267,11 @@ final class SettingsWindowController: NSWindowController {
     }
 
     @objc private func resetDefaults() {
-        preferences.setWatchedBundleIDs(WatchedApps.defaults)
+        preferences.resetUserExtras()
         reloadTable()
         NotificationCenter.default.post(name: .kenglitPrefsChanged, object: nil)
-        errorLabel.stringValue = ""
+        errorLabel.textColor = .secondaryLabelColor
+        errorLabel.stringValue = "Cleared"
     }
 
     private func scrollToBundleID(_ id: String) {

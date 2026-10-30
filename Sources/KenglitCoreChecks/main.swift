@@ -58,19 +58,33 @@ do {
     let store = PreferencesStore(defaults: defaults)
     Check.expect(store.isEnabled, "default enabled")
     Check.expect(!store.launchAtLogin, "default launchAtLogin false")
-    Check.equal(store.watchedBundleIDs, WatchedApps.defaults, "watched seeded")
+    Check.equal(store.userWatchedBundleIDs, [], "user extras empty")
+    Check.equal(store.watchedBundleIDs, WatchedApps.defaults, "effective = defaults")
 
     store.isEnabled = false
     let reloaded = PreferencesStore(defaults: defaults)
     Check.expect(!reloaded.isEnabled, "persists enabled")
 
     store.addWatchedBundleID("com.example.App")
-    Check.expect(store.watchedBundleIDs.contains("com.example.App"), "add bundle")
-    store.removeWatchedBundleID("com.example.App")
-    Check.expect(!store.watchedBundleIDs.contains("com.example.App"), "remove bundle")
+    Check.expect(store.userWatchedBundleIDs.contains("com.example.App"), "user list has add")
+    Check.expect(store.watchedBundleIDs.contains("com.example.App"), "effective has add")
+    // Built-in defaults are not stored as user extras
+    store.addWatchedBundleID("com.apple.Terminal")
+    Check.expect(!store.userWatchedBundleIDs.contains("com.apple.Terminal"), "default not in user list")
+    Check.expect(store.watchedBundleIDs.contains("com.apple.Terminal"), "default still effective")
 
-    store.setWatchedBundleIDs([" com.z ", "com.a", "com.a"])
-    Check.equal(store.watchedBundleIDs, ["com.a", "com.z"], "set normalizes")
+    store.removeWatchedBundleID("com.example.App")
+    Check.expect(!store.userWatchedBundleIDs.contains("com.example.App"), "remove user extra")
+    Check.expect(!store.watchedBundleIDs.contains("com.example.App"), "gone from effective")
+
+    store.setUserWatchedBundleIDs([" com.z ", "com.a", "com.a", "com.apple.Terminal"])
+    Check.equal(store.userWatchedBundleIDs, ["com.a", "com.z"], "extras sanitize+dedupe, drop defaults")
+    Check.expect(store.watchedBundleIDs.contains("com.a"), "effective has user a")
+    Check.expect(store.watchedBundleIDs.contains("com.apple.Terminal"), "effective keeps default")
+
+    store.resetUserExtras()
+    Check.equal(store.userWatchedBundleIDs, [], "reset clears user only")
+    Check.equal(store.watchedBundleIDs, WatchedApps.defaults, "reset keeps defaults")
     defaults.removePersistentDomain(forName: suite)
 }
 
