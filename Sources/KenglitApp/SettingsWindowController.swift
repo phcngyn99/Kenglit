@@ -29,6 +29,7 @@ final class SettingsWindowController: NSWindowController {
     private var displayRows: [Row] = []
     private var customExpanded = true
     private var builtInExpanded = true
+    private var lastSectionToggleAt: CFAbsoluteTime = 0
     private var filter = ""
     private var iconCache: [String: NSImage] = [:]
     var onClose: (() -> Void)?
@@ -137,8 +138,16 @@ final class SettingsWindowController: NSWindowController {
         table.addTableColumn(col)
         table.dataSource = self
         table.delegate = self
-        table.onRowMouseDown = { [weak self] row in
-            self?.handleTableRowClick(row) ?? false
+        table.sectionRowCheck = { [weak self] row -> Bool in
+            guard let self, row >= 0, row < self.displayRows.count else { return false }
+            switch self.displayRows[row] {
+            case .header, .empty: return true
+            case .app: return false
+            }
+        }
+        table.onSectionClick = { [weak self] row in
+            guard let self else { return }
+            _ = self.handleTableRowClick(row)
         }
         scroll.documentView = table
         root.addSubview(scroll)
@@ -429,6 +438,10 @@ final class SettingsWindowController: NSWindowController {
     }
 
     private func toggleSection(_ section: Section) {
+        // Guard double-delivery (cell + table both see same click).
+        let now = CFAbsoluteTimeGetCurrent()
+        if now - lastSectionToggleAt < 0.2 { return }
+        lastSectionToggleAt = now
         switch section {
         case .custom: customExpanded.toggle()
         case .builtIn: builtInExpanded.toggle()
@@ -445,6 +458,23 @@ final class SettingsWindowController: NSWindowController {
             i -= 1
         }
         return nil
+    }
+
+    fileprivate func handleTableRowClick(_ row: Int) -> Bool {
+        guard row >= 0, row < displayRows.count else { return false }
+        switch displayRows[row] {
+        case let .header(section, _, _):
+            toggleSection(section)
+            return true
+        case .empty:
+            if let section = sectionOwning(row: row) {
+                toggleSection(section)
+                return true
+            }
+            return false
+        case .app:
+            return false
+        }
     }
 
 
@@ -661,23 +691,7 @@ extension SettingsWindowController: NSTableViewDataSource, NSTableViewDelegate {
         return false
     }
 
-    /// Returns true when the click was a section chrome row (handled).
-    fileprivate func handleTableRowClick(_ row: Int) -> Bool {
-        guard row >= 0, row < displayRows.count else { return false }
-        switch displayRows[row] {
-        case let .header(section, _, _):
-            toggleSection(section)
-            return true
-        case .empty:
-            if let section = sectionOwning(row: row) {
-                toggleSection(section)
-                return true
-            }
-            return false
-        case .app:
-            return false
-        }
-    }
+
 
     func tableView(_ tableView: NSTableView, viewFor tableColumn: NSTableColumn?, row: Int) -> NSView? {
         guard row >= 0, row < displayRows.count else { return nil }
@@ -722,16 +736,27 @@ extension SettingsWindowController: NSTableViewDataSource, NSTableViewDelegate {
     }
 }
 
-/// Forwards header/empty clicks; app rows use normal NSTableView handling.
 final class SettingsTableView: NSTableView {
-    /// Return true if the click was fully handled (skip super.mouseDown).
-    var onRowMouseDown: ((Int) -> Bool)?
+    var sectionRowCheck: ((Int) -> Bool)?
+    var onSectionClick: ((Int) -> Void)?
+
+    override func hitTest(_ point: NSPoint) -> NSView? {
+        // point is in the superview coordinate system (AppKit).
+        let local = convert(point, from: superview)
+        let r = row(at: local)
+        if r >= 0, sectionRowCheck?(r) == true {
+            return self
+        }
+        return super.hitTest(point)
+    }
+
+    override func acceptsFirstMouse(for event: NSEvent?) -> Bool { true }
 
     override func mouseDown(with event: NSEvent) {
         let local = convert(event.locationInWindow, from: nil)
-        let row = self.row(at: local)
-        if row >= 0, onRowMouseDown?(row) == true {
-            // Header/empty handled — skip super so reload mid-click can't bounce.
+        let r = row(at: local)
+        if r >= 0, sectionRowCheck?(r) == true {
+            onSectionClick?(r)
             return
         }
         super.mouseDown(with: event)
@@ -740,84 +765,75 @@ final class SettingsTableView: NSTableView {
 
 final class SectionHeaderCell: NSView {
     private let chevron = NSImageView(frame: .zero)
-    private let title = NSTextField(labelWithString: "")
-    private var onToggle: (() -> Void)?
+    private let titleLabel = NSTextField(labelWithString: "")
 
     override init(frame frameRect: NSRect) {
         super.init(frame: frameRect)
+        wantsLayer = true
         chevron.contentTintColor = .secondaryLabelColor
         addSubview(chevron)
-        title.font = .systemFont(ofSize: 11, weight: .semibold)
-        title.textColor = .secondaryLabelColor
-        title.lineBreakMode = .byTruncatingTail
-        title.isEditable = false
-        title.isSelectable = false
-        title.isEnabled = false
-        title.refusesFirstResponder = true
-        addSubview(title)
+        titleLabel.font = .systemFont(ofSize: 11, weight: .semibold)
+        titleLabel.textColor = .secondaryLabelColor
+        titleLabel.isEditable = false
+        titleLabel.isSelectable = false
+        titleLabel.isBordered = false
+        titleLabel.drawsBackground = false
+        titleLabel.refusesFirstResponder = true
+        addSubview(titleLabel)
     }
     @available(*, unavailable) required init?(coder: NSCoder) { fatalError() }
-    func configure(title text: String, expanded: Bool, onToggle: @escaping () -> Void) {
-        self.onToggle = onToggle
-        title.stringValue = text
+
+    func configure(title text: String, expanded: Bool, onToggle: @escaping () -> Void = {}) {
+        _ = onToggle
+        titleLabel.stringValue = text
+        let conf = NSImage.SymbolConfiguration(pointSize: 9, weight: .bold)
         let sym = expanded ? "chevron.down" : "chevron.right"
-        if let b = NSImage(systemSymbolName: sym, accessibilityDescription: "Toggle") {
-            chevron.image = b.withSymbolConfiguration(.init(pointSize: 9, weight: .bold)) ?? b
+        if let img = NSImage(systemSymbolName: sym, accessibilityDescription: nil) {
+            chevron.image = img.withSymbolConfiguration(conf) ?? img
         }
-        setAccessibilityLabel(text)
-        setAccessibilityRole(.button)
+        toolTip = (expanded ? "Collapse " : "Expand ") + text
         needsLayout = true
     }
-    override func acceptsFirstMouse(for event: NSEvent?) -> Bool { true }
-    /// Claim full-row hits so label/chevron never steal collapse clicks.
-    override func hitTest(_ point: NSPoint) -> NSView? {
-        bounds.contains(point) ? self : nil
-    }
-    override func mouseDown(with event: NSEvent) {
-        // Collapse/expand is handled in tableView(_:shouldSelectRow:).
-    }
+
     override func layout() {
         super.layout()
         let h = max(bounds.height, SettingsUI.headerH)
-        let w = max(bounds.width, 120)
         let c: CGFloat = 11
         chevron.frame = NSRect(x: 8, y: floor((h - c) / 2), width: c, height: c)
-        title.frame = NSRect(x: 8 + c + 6, y: floor((h - 14) / 2), width: max(w - 40, 40), height: 14)
+        titleLabel.frame = NSRect(x: 25, y: floor((h - 14) / 2), width: max(bounds.width - 36, 40), height: 14)
     }
 }
 
 final class EmptyHintCell: NSView {
     private let label = NSTextField(labelWithString: "")
-    private var onCollapse: (() -> Void)?
 
     override init(frame frameRect: NSRect) {
         super.init(frame: frameRect)
         label.font = .systemFont(ofSize: 11)
         label.textColor = .tertiaryLabelColor
-        label.lineBreakMode = .byTruncatingTail
         label.isEditable = false
         label.isSelectable = false
-        label.isEnabled = false
+        label.isBordered = false
+        label.drawsBackground = false
         label.refusesFirstResponder = true
         addSubview(label)
     }
     @available(*, unavailable) required init?(coder: NSCoder) { fatalError() }
+
     func configure(_ text: String, onCollapse: (() -> Void)? = nil) {
+        _ = onCollapse
         label.stringValue = text
-        self.onCollapse = onCollapse
         needsLayout = true
     }
-    override func hitTest(_ point: NSPoint) -> NSView? {
-        bounds.contains(point) ? self : nil
-    }
-    override func acceptsFirstMouse(for event: NSEvent?) -> Bool { true }
-    override func mouseDown(with event: NSEvent) {
-        // Collapse handled in tableView(_:shouldSelectRow:).
-    }
+
     override func layout() {
         super.layout()
-        label.frame = NSRect(x: SettingsUI.iconPad + SettingsUI.icon + 8, y: 0,
-                             width: max(bounds.width - 40, 40), height: bounds.height)
+        label.frame = NSRect(
+            x: SettingsUI.iconPad + SettingsUI.icon + 8,
+            y: 0,
+            width: max(bounds.width - 40, 40),
+            height: bounds.height
+        )
     }
 }
 
