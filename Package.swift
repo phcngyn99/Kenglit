@@ -23,6 +23,7 @@ let package = Package(
                 .linkedFramework("Carbon"),
                 .linkedFramework("AppKit"),
                 .linkedFramework("ServiceManagement"),
+                .linkedFramework("QuartzCore"),
             ]
         ),
     ]
