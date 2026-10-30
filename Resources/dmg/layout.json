@@ -38,5 +38,25 @@
   "reviewed_refs": {
     "main": "56573bed430ab4d4a2742e7695d3c93928566899",
     "develop": "c2598d41744de36558e4921d1eff78e078857625"
+  },
+  "background_metadata": {
+    "1x": {
+      "pixels": [
+        760,
+        600
+      ],
+      "dpi": 72
+    },
+    "2x": {
+      "pixels": [
+        1520,
+        1200
+      ],
+      "dpi": 144
+    },
+    "logical_size_points": [
+      760,
+      600
+    ]
   }
 }
