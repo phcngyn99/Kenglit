@@ -45,12 +45,13 @@ public final class PreferencesStore: ObservableObject {
         } else if let legacy = defaults.array(forKey: Key.watchedLegacy) as? [String] {
             // One-shot migration: only keep ids that are NOT built-in defaults.
             let builtin = Set(WatchedApps.defaults)
-            let onlyUser = legacy.filter { !builtin.contains($0) }
-            self.userWatchedBundleIDs = Self.sanitizeExtras(onlyUser)
-            defaults.set(self.userWatchedBundleIDs, forKey: Key.userExtras)
+            let onlyUser = Self.sanitizeExtras(legacy.filter { !builtin.contains($0) })
+            self.userWatchedBundleIDs = onlyUser
         } else {
             self.userWatchedBundleIDs = []
         }
+        // didSet does not run during init — persist explicitly.
+        defaults.set(userWatchedBundleIDs, forKey: Key.userExtras)
     }
 
     public func setUserWatchedBundleIDs(_ ids: [String]) {
