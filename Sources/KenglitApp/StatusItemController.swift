@@ -141,16 +141,6 @@ final class StatusItemController: NSObject, NSMenuDelegate {
 
         menu.addItem(.separator())
 
-        let testEN = NSMenuItem(title: "Test switch to EN", action: #selector(testEnglish), keyEquivalent: "")
-        testEN.target = self
-        testEN.isEnabled = enabled
-        menu.addItem(testEN)
-
-        let testVI = NSMenuItem(title: "Test switch to VI", action: #selector(testVietnamese), keyEquivalent: "")
-        testVI.target = self
-        testVI.isEnabled = enabled
-        menu.addItem(testVI)
-
         let settings = NSMenuItem(title: "Settings…", action: #selector(openSettings), keyEquivalent: ",")
         settings.target = self
         menu.addItem(settings)
@@ -177,23 +167,7 @@ final class StatusItemController: NSObject, NSMenuDelegate {
         rebuildMenu()
     }
 
-    @objc private func testEnglish() {
-        if !model.switcher.selectEnglish() {
-            model.monitor.lastWarning = "No English keyboard found"
-        } else {
-            model.monitor.lastWarning = nil
-        }
-        rebuildMenu()
-    }
 
-    @objc private func testVietnamese() {
-        if !model.switcher.selectVietnamese() {
-            model.monitor.lastWarning = "No Vietnamese keyboard found"
-        } else {
-            model.monitor.lastWarning = nil
-        }
-        rebuildMenu()
-    }
 
     @objc private func openSettings() {
         if let existing = settingsWindow {

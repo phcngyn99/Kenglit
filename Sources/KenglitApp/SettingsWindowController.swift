@@ -6,7 +6,6 @@ final class SettingsWindowController: NSWindowController {
     private let preferences: PreferencesStore
     private var table: NSTableView!
     private var bundleField: NSTextField!
-    private var enabledButton: NSButton!
     private var loginButton: NSButton!
     private var errorLabel: NSTextField!
 
@@ -31,23 +30,18 @@ final class SettingsWindowController: NSWindowController {
     private func buildContent() -> NSView {
         let root = NSView(frame: NSRect(x: 0, y: 0, width: 560, height: 460))
 
-        enabledButton = NSButton(checkboxWithTitle: "Enabled", target: self, action: #selector(toggleEnabled))
-        enabledButton.state = preferences.isEnabled ? .on : .off
-        enabledButton.frame = NSRect(x: 20, y: 420, width: 200, height: 24)
-        root.addSubview(enabledButton)
-
         loginButton = NSButton(checkboxWithTitle: "Launch at login", target: self, action: #selector(toggleLogin))
         loginButton.state = preferences.launchAtLogin ? .on : .off
-        loginButton.frame = NSRect(x: 20, y: 392, width: 200, height: 24)
+        loginButton.frame = NSRect(x: 20, y: 420, width: 200, height: 24)
         root.addSubview(loginButton)
 
         errorLabel = NSTextField(labelWithString: "")
         errorLabel.textColor = .systemRed
         errorLabel.font = .systemFont(ofSize: 11)
-        errorLabel.frame = NSRect(x: 230, y: 392, width: 300, height: 24)
+        errorLabel.frame = NSRect(x: 230, y: 420, width: 300, height: 24)
         root.addSubview(errorLabel)
 
-        let scroll = NSScrollView(frame: NSRect(x: 20, y: 90, width: 520, height: 290))
+        let scroll = NSScrollView(frame: NSRect(x: 20, y: 90, width: 520, height: 310))
         scroll.hasVerticalScroller = true
         scroll.borderType = .bezelBorder
         table = NSTableView(frame: scroll.bounds)
@@ -86,13 +80,7 @@ final class SettingsWindowController: NSWindowController {
 
     private func reloadTable() {
         table.reloadData()
-        enabledButton.state = preferences.isEnabled ? .on : .off
         loginButton.state = preferences.launchAtLogin ? .on : .off
-    }
-
-    @objc private func toggleEnabled() {
-        preferences.isEnabled = (enabledButton.state == .on)
-        NotificationCenter.default.post(name: .kenglitPrefsChanged, object: nil)
     }
 
     @objc private func toggleLogin() {
