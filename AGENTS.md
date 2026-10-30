@@ -28,10 +28,17 @@ Guidance for coding agents working in this repository.
 
 ## Commands
 
+    make help
+    make check
+    make reinstall
+    make version
+
     swift build --product Kenglit
     swift run KenglitCoreChecks
     ./Scripts/pack-app.sh
     ./Scripts/pack-dmg.sh
+    ./Scripts/uninstall-all.sh
+    ./Scripts/install.sh
 
 ## Code intelligence
 

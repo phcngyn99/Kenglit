@@ -302,6 +302,10 @@ final class SettingsWindowController: NSWindowController {
     @objc private func showAbout(_ sender: Any?) {
         let anchor = (sender as? NSView) ?? window?.contentView
         guard let anchor else { return }
+        let short = Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String ?? "0.1.0"
+        let build = Bundle.main.object(forInfoDictionaryKey: "CFBundleVersion") as? String ?? "1"
+        let bid = Bundle.main.bundleIdentifier ?? "dev.finn.kenglit"
+        let minOS = Bundle.main.object(forInfoDictionaryKey: "LSMinimumSystemVersion") as? String ?? "13.0"
         HelpPopover.shared.show(
             relativeTo: anchor.bounds,
             of: anchor,
@@ -316,6 +320,11 @@ final class SettingsWindowController: NSWindowController {
 
             Other apps
             Switch to Vietnamese when focus leaves a listed app.
+
+            Version
+            \(short) (\(build))
+            Bundle  \(bid)
+            Requires macOS \(minOS)+
 
             Author
             Finn Nguyen × Hawking
