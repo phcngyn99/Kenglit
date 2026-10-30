@@ -4,3 +4,5 @@ dist/
 .superpowers/
 *.xcodeproj/xcuserdata/
 Resources/AppIcon.iconset/
+Kenglit-*.dmg
+tmp/
