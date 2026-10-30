@@ -1,24 +1,11 @@
-# Kenglit — common developer tasks
-# Usage: make help
-
-.PHONY: help build check pack dmg install uninstall reinstall open version clean
+.PHONY: help build check icons pack dmg install uninstall reinstall open version clean
 
 ROOT := $(abspath $(dir $(lastword $(MAKEFILE_LIST))))
-APP  := $(HOME)/Applications/Kenglit.app
+APP  := /Applications/Kenglit.app
 PLIST := $(ROOT)/Resources/Info.plist
 
 help:
-	@echo "Kenglit targets"
-	@echo "  make build       Debug build (Kenglit product)"
-	@echo "  make check       Run KenglitCoreChecks"
-	@echo "  make pack        Release .app under dist/"
-	@echo "  make dmg         Shareable Kenglit-*.dmg at repo root"
-	@echo "  make install     Pack + install single copy to ~/Applications"
-	@echo "  make uninstall   Quit + remove all known Kenglit.app copies"
-	@echo "  make reinstall   uninstall + install + launch"
-	@echo "  make open        Open installed app"
-	@echo "  make version     Print Info.plist version / bundle id"
-	@echo "  make clean       Remove local .build (debug+release) via move to /tmp"
+	@echo "make build | check | icons | pack | dmg | install | uninstall | reinstall | open | version | clean"
 
 build:
 	cd $(ROOT) && swift build --product Kenglit
@@ -26,6 +13,9 @@ build:
 check:
 	cd $(ROOT) && swift build --product KenglitCoreChecks
 	$(ROOT)/.build/debug/KenglitCoreChecks
+
+icons:
+	python3 $(ROOT)/Scripts/generate-icons.py
 
 pack:
 	$(ROOT)/Scripts/pack-app.sh

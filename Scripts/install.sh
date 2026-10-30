@@ -1,28 +1,34 @@
 #!/usr/bin/env bash
-# Build release .app and install the single copy into ~/Applications.
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
-HOME_APPS="${HOME}/Applications"
-DEST="${HOME_APPS}/Kenglit.app"
+SRC="${ROOT}/dist/Kenglit.app"
+DEST="/Applications/Kenglit.app"
 
 cd "$ROOT"
 ./Scripts/pack-app.sh
+[[ -d "$SRC" ]] || { echo "error: missing $SRC" >&2; exit 1; }
 
-mkdir -p "$HOME_APPS"
-# Replace prior install without leaving a second searchable copy in dist/
-if [[ -d "$DEST" ]]; then
-  osascript -e "tell application \"Finder\" to delete (POSIX file \"$DEST\" as alias)" >/dev/null 2>&1 \
-    || mv "$DEST" "/tmp/kenglit-old-install-$(date +%Y%m%d%H%M%S).app"
+trash_path() {
+  local p="$1"
+  [[ -e "$p" ]] || return 0
+  osascript -e "tell application \"Finder\" to delete (POSIX file \"$p\" as alias)" >/dev/null 2>&1 \
+    || mv "$p" "/tmp/kenglit-trash-$(date +%Y%m%d%H%M%S)-$(basename "$p")"
+}
+
+trash_path "${HOME}/Applications/Kenglit.app"
+trash_path "$DEST"
+
+if cp -R "$SRC" "$DEST" 2>/dev/null; then
+  :
+else
+  echo "Need admin to write /Applications (macOS password prompt)…"
+  osascript -e "do shell script \"ditto \" & quoted form of \"$SRC\" & \" \" & quoted form of \"$DEST\" with administrator privileges" \
+    || { echo "error: install to $DEST failed (admin canceled or denied)" >&2; exit 1; }
 fi
-cp -R "${ROOT}/dist/Kenglit.app" "$DEST"
+
 codesign --force --deep --sign - "$DEST" >/dev/null 2>&1 || true
-
-# Keep only ~/Applications searchable as the live app
-if [[ -d "${ROOT}/dist/Kenglit.app" ]]; then
-  osascript -e "tell application \"Finder\" to delete (POSIX file \"${ROOT}/dist/Kenglit.app\" as alias)" >/dev/null 2>&1 \
-    || mv "${ROOT}/dist/Kenglit.app" "/tmp/kenglit-dist-$(date +%Y%m%d%H%M%S).app"
-fi
+trash_path "$SRC"
 
 LSREG="/System/Library/Frameworks/CoreServices.framework/Frameworks/LaunchServices.framework/Support/lsregister"
 if [[ -x "$LSREG" ]]; then
@@ -34,4 +40,3 @@ BID="$(/usr/libexec/PlistBuddy -c 'Print CFBundleIdentifier' "$DEST/Contents/Inf
 echo "Installed: $DEST"
 echo "  version: $VER"
 echo "  bundle:  $BID"
-echo "Open: open \"$DEST\""

@@ -133,7 +133,6 @@ final class StatusItemController: NSObject, NSMenuDelegate {
     }
 
     @objc func openSettings() {
-        // Temporarily regular so window reliably comes front from Applications click.
         NSApp.setActivationPolicy(.regular)
         NSApp.activate(ignoringOtherApps: true)
 
@@ -144,7 +143,6 @@ final class StatusItemController: NSObject, NSMenuDelegate {
         settingsController?.window?.makeKeyAndOrderFront(nil)
         NSApp.activate(ignoringOtherApps: true)
 
-        // Stay regular while Settings is open so it stays usable; restore when closed.
         settingsController?.onClose = { [weak self] in
             NSApp.setActivationPolicy(.accessory)
             self?.settingsController = nil
@@ -156,38 +154,89 @@ final class StatusItemController: NSObject, NSMenuDelegate {
     }
 }
 
-/// Menu bar template icon (system-tinted for light/dark bar).
 enum MenuBarIcon {
     static func make(enabled: Bool, size: CGFloat = 18) -> NSImage {
-        let final = NSImage(size: NSSize(width: size, height: size), flipped: false) { rect in
-            let inset = size * 0.10
-            let box = rect.insetBy(dx: inset, dy: inset)
-            let radius = size * 0.22
-            let border = NSBezierPath(roundedRect: box, xRadius: radius, yRadius: radius)
+        if let template = loadTemplate() {
+            let image = NSImage(size: NSSize(width: size, height: size))
+            image.lockFocus()
+            NSGraphicsContext.current?.imageInterpolation = .high
+            template.draw(
+                in: NSRect(x: 0, y: 0, width: size, height: size),
+                from: .zero,
+                operation: .sourceOver,
+                fraction: 1.0,
+                respectFlipped: true,
+                hints: [.interpolation: NSImageInterpolation.high]
+            )
+            if !enabled {
+                NSColor.black.setStroke()
+                let inset = size * 0.18
+                let slash = NSBezierPath()
+                slash.move(to: NSPoint(x: inset, y: inset))
+                slash.line(to: NSPoint(x: size - inset, y: size - inset))
+                slash.lineWidth = max(size * 0.11, 1.2)
+                slash.lineCapStyle = .round
+                slash.stroke()
+            }
+            image.unlockFocus()
+            image.isTemplate = true
+            image.size = NSSize(width: size, height: size)
+            return image
+        }
+        return fallback(enabled: enabled, size: size)
+    }
 
-            // Draw black; isTemplate makes menu bar tint it.
+    private static func loadTemplate() -> NSImage? {
+        if let named = NSImage(named: "kenglitTemplate") {
+            named.isTemplate = true
+            return named
+        }
+        let bundle = Bundle.main
+        if let url = bundle.url(forResource: "kenglitTemplate", withExtension: "png"),
+           let image = NSImage(contentsOf: url) {
+            image.isTemplate = true
+            return image
+        }
+        return nil
+    }
+
+    private static func fallback(enabled: Bool, size: CGFloat) -> NSImage {
+        let final = NSImage(size: NSSize(width: size, height: size), flipped: false) { rect in
+            let inset = size * 0.08
+            let box = rect.insetBy(dx: inset, dy: inset)
+            let radius = size * 0.20
+            let border = NSBezierPath(roundedRect: box, xRadius: radius, yRadius: radius)
             NSColor.black.setStroke()
             NSColor.black.setFill()
+            border.lineWidth = max(size * 0.10, 1.15)
+            border.stroke()
 
-            if enabled {
-                border.lineWidth = max(size * 0.10, 1.2)
-                border.stroke()
-                drawK(in: box, alpha: 1.0, fontSize: size * 0.62)
-                let pipR = size * 0.10
-                let pip = NSRect(
-                    x: box.maxX - pipR * 1.5,
-                    y: box.minY + pipR * 0.2,
-                    width: pipR * 1.4,
-                    height: pipR * 1.4
-                )
-                NSBezierPath(ovalIn: pip).fill()
-            } else {
-                border.lineWidth = max(size * 0.08, 1.0)
-                border.stroke()
-                drawK(in: box, alpha: 0.55, fontSize: size * 0.58)
+            let stemW = size * 0.09
+            let stemH = size * 0.47
+            let stem = NSRect(
+                x: box.minX + box.width * 0.28,
+                y: box.midY - stemH / 2,
+                width: stemW,
+                height: stemH
+            )
+            NSBezierPath(roundedRect: stem, xRadius: stemW * 0.2, yRadius: stemW * 0.2).fill()
+
+            let arm = NSBezierPath()
+            let ax = stem.maxX + size * 0.02
+            let midY = box.midY
+            arm.move(to: NSPoint(x: ax, y: midY))
+            arm.line(to: NSPoint(x: box.maxX - box.width * 0.18, y: box.maxY - box.height * 0.18))
+            arm.move(to: NSPoint(x: ax, y: midY))
+            arm.line(to: NSPoint(x: box.maxX - box.width * 0.18, y: box.minY + box.height * 0.18))
+            arm.lineWidth = max(size * 0.10, 1.2)
+            arm.lineCapStyle = .round
+            arm.lineJoinStyle = .round
+            arm.stroke()
+
+            if !enabled {
                 let slash = NSBezierPath()
-                slash.move(to: NSPoint(x: box.minX + box.width * 0.18, y: box.minY + box.height * 0.22))
-                slash.line(to: NSPoint(x: box.maxX - box.width * 0.18, y: box.maxY - box.height * 0.22))
+                slash.move(to: NSPoint(x: box.minX + box.width * 0.16, y: box.minY + box.height * 0.18))
+                slash.line(to: NSPoint(x: box.maxX - box.width * 0.16, y: box.maxY - box.height * 0.18))
                 slash.lineWidth = max(size * 0.11, 1.3)
                 slash.lineCapStyle = .round
                 slash.stroke()
@@ -197,22 +246,5 @@ enum MenuBarIcon {
         final.isTemplate = true
         final.size = NSSize(width: size, height: size)
         return final
-    }
-
-    private static func drawK(in box: NSRect, alpha: CGFloat, fontSize: CGFloat) {
-        let paragraph = NSMutableParagraphStyle()
-        paragraph.alignment = .center
-        let attrs: [NSAttributedString.Key: Any] = [
-            .font: NSFont.systemFont(ofSize: fontSize, weight: .bold),
-            .foregroundColor: NSColor.black.withAlphaComponent(alpha),
-            .paragraphStyle: paragraph,
-        ]
-        let text = NSString(string: "K")
-        let size = text.size(withAttributes: attrs)
-        let origin = NSPoint(
-            x: box.midX - size.width / 2,
-            y: box.midY - size.height / 2 - box.height * 0.04
-        )
-        text.draw(at: origin, withAttributes: attrs)
     }
 }

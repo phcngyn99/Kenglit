@@ -1,13 +1,10 @@
 import Foundation
 
 public enum WatchedApps {
-    /// Terminals, IDEs, and coding tools that should force English.
     public static let defaults: [String] = normalized([
-        // Apple
         "com.apple.Terminal",
         "com.apple.dt.Xcode",
 
-        // Terminals
         "com.googlecode.iterm2",
         "dev.warp.Warp-Stable",
         "dev.warp.Warp",
@@ -23,10 +20,9 @@ public enum WatchedApps {
         "com.github.raphamorim.rio",
         "com.rio-labs.rio",
 
-        // Editors / IDEs
         "com.microsoft.VSCode",
         "com.microsoft.VSCodeInsiders",
-        "com.todesktop.230313mzl4w4u92", // Cursor
+        "com.todesktop.230313mzl4w4u92",
         "dev.zed.Zed",
         "dev.zed.Zed-Preview",
         "com.panic.Nova",
@@ -36,7 +32,6 @@ public enum WatchedApps {
         "com.barebones.bbedit",
         "com.macromates.TextMate",
 
-        // JetBrains family
         "com.jetbrains.intellij",
         "com.jetbrains.intellij.ce",
         "com.jetbrains.AppCode",
@@ -52,19 +47,16 @@ public enum WatchedApps {
         "com.jetbrains.RustRover",
         "com.google.android.studio",
 
-        // Git clients (often type EN commands/messages)
         "com.github.GitHubClient",
         "com.DanPristupov.Fork",
         "com.git-tower.Tower",
         "com.axosoft.gitkraken",
 
-        // Dev tooling with command/input focus
         "com.docker.docker",
         "com.electron.dockerdesktop",
         "com.postmanlabs.mac",
     ])
 
-    /// Friendly labels for known bundle IDs (settings UI).
     public static let displayNames: [String: String] = [
         "com.apple.Terminal": "Terminal",
         "com.apple.dt.Xcode": "Xcode",
