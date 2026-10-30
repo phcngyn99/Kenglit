@@ -316,19 +316,53 @@ final class SettingsWindowController: NSWindowController {
     }
 
     private static func appIcon(for bundleID: String) -> NSImage {
-        let size = NSSize(width: 28, height: 28)
+        let point = NSSize(width: 28, height: 28)
+        let source: NSImage
         if let url = NSWorkspace.shared.urlForApplication(withBundleIdentifier: bundleID) {
-            let icon = NSWorkspace.shared.icon(forFile: url.path)
-            icon.size = size
-            return icon
+            source = NSWorkspace.shared.icon(forFile: url.path)
+        } else if let generic = NSImage(systemSymbolName: "app.fill", accessibilityDescription: nil) {
+            source = generic
+        } else {
+            return NSImage(size: point)
         }
-        if let generic = NSImage(systemSymbolName: "app.fill", accessibilityDescription: nil) {
-            let config = NSImage.SymbolConfiguration(pointSize: 18, weight: .regular)
-            let img = generic.withSymbolConfiguration(config) ?? generic
-            img.size = size
-            return img
+
+        // Draw into a fixed-size bitmap so NSImageView always has real pixels
+        // (mutating icon.size alone is unreliable across AppKit versions).
+        let scale = NSScreen.main?.backingScaleFactor ?? 2.0
+        let px = NSSize(width: point.width * scale, height: point.height * scale)
+        let rep = NSBitmapImageRep(
+            bitmapDataPlanes: nil,
+            pixelsWide: Int(px.width),
+            pixelsHigh: Int(px.height),
+            bitsPerSample: 8,
+            samplesPerPixel: 4,
+            hasAlpha: true,
+            isPlanar: false,
+            colorSpaceName: .deviceRGB,
+            bytesPerRow: 0,
+            bitsPerPixel: 0
+        )!
+        rep.size = point
+
+        NSGraphicsContext.saveGraphicsState()
+        if let ctx = NSGraphicsContext(bitmapImageRep: rep) {
+            NSGraphicsContext.current = ctx
+            let dst = NSRect(origin: .zero, size: point)
+            source.draw(
+                in: dst,
+                from: NSRect(origin: .zero, size: source.size),
+                operation: .sourceOver,
+                fraction: 1.0,
+                respectFlipped: false,
+                hints: [.interpolation: NSNumber(value: NSImageInterpolation.high.rawValue)]
+            )
         }
-        return NSImage(size: size)
+        NSGraphicsContext.restoreGraphicsState()
+
+        let out = NSImage(size: point)
+        out.addRepresentation(rep)
+        out.isTemplate = false
+        return out
     }
 
     private static func log(_ msg: String) {
@@ -385,7 +419,7 @@ extension SettingsWindowController: NSTableViewDataSource, NSTableViewDelegate {
 }
 
 /// Frame-based cell. No Auto Layout inside recycled rows (avoids scroll wipe).
-final class AppIconNameCell: NSView {
+final class AppIconNameCell: NSTableCellView {
     private let iconView = NSImageView(frame: .zero)
     private let nameField = NSTextField(labelWithString: "")
 
@@ -393,17 +427,26 @@ final class AppIconNameCell: NSView {
         super.init(frame: frameRect)
         wantsLayer = true
 
+        iconView.wantsLayer = true
         iconView.imageScaling = .scaleProportionallyUpOrDown
         iconView.imageAlignment = .alignCenter
+        iconView.animates = false
         addSubview(iconView)
 
         nameField.isEditable = false
         nameField.isBordered = false
         nameField.drawsBackground = false
+        nameField.backgroundColor = .clear
         nameField.font = .systemFont(ofSize: 13, weight: .medium)
+        nameField.textColor = .labelColor
         nameField.lineBreakMode = .byTruncatingTail
         nameField.cell?.truncatesLastVisibleLine = true
+        nameField.cell?.lineBreakMode = .byTruncatingTail
         addSubview(nameField)
+
+        // NSTableCellView expected refs
+        imageView = iconView
+        textField = nameField
     }
 
     @available(*, unavailable)
@@ -414,26 +457,22 @@ final class AppIconNameCell: NSView {
         nameField.stringValue = name
         self.toolTip = toolTip
         needsLayout = true
+        layoutSubtreeIfNeeded()
     }
 
     override func layout() {
         super.layout()
-        let h = bounds.height
+        let h = max(bounds.height, 40)
+        let w = max(bounds.width, 120)
         let icon: CGFloat = 28
-        let inset: CGFloat = 8
-        iconView.frame = NSRect(
-            x: inset,
-            y: (h - icon) / 2,
-            width: icon,
-            height: icon
-        )
+        let inset: CGFloat = 10
+        iconView.frame = NSRect(x: inset, y: (h - icon) / 2, width: icon, height: icon)
         let textX = iconView.frame.maxX + 10
-        nameField.frame = NSRect(
-            x: textX,
-            y: 0,
-            width: max(bounds.width - textX - inset, 0),
-            height: h
-        )
+        nameField.frame = NSRect(x: textX, y: 0, width: max(w - textX - inset, 40), height: h)
+    }
+
+    override var intrinsicContentSize: NSSize {
+        NSSize(width: NSView.noIntrinsicMetric, height: 40)
     }
 }
 
