@@ -51,10 +51,9 @@ echo "$ATTACH_OUT"
 MOUNT_POINT="$(echo "$ATTACH_OUT" | awk '/\/Volumes\// {print $NF; exit}')"
 [[ -n "$MOUNT_POINT" && -d "$MOUNT_POINT" ]] || { echo "error: mount failed" >&2; exit 1; }
 
-if [[ -f "$MOUNT_POINT/.VolumeIcon.icns" ]]; then
-  SetFile -c icnC "$MOUNT_POINT/.VolumeIcon.icns" 2>/dev/null || true
-  SetFile -a C "$MOUNT_POINT" 2>/dev/null || true
-fi
+cp "$ICON" "$MOUNT_POINT/.VolumeIcon.icns"
+SetFile -c icnC "$MOUNT_POINT/.VolumeIcon.icns" 2>/dev/null || true
+SetFile -a C "$MOUNT_POINT" 2>/dev/null || true
 
 osascript <<EOF
 tell application "Finder"
