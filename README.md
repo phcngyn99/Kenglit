@@ -25,32 +25,29 @@ listed apps to **English**, everything else to **Vietnamese**.
 
 ### Click to install (DMG)
 
-File (repo root):
+Repo root file:
 
     Kenglit-0.1.0-beta.dmg
 
-Full path on this machine (worktree until merged):
-
-    /Users/FinNguyen/Work/not-finn/kenglish/.worktrees/cleanup-dmg/Kenglit-0.1.0-beta.dmg
-
-After merge to `develop` / clone:
+On this machine:
 
     /Users/FinNguyen/Work/not-finn/kenglish/Kenglit-0.1.0-beta.dmg
-    # or: <clone>/Kenglit-0.1.0-beta.dmg
+
+    open /Users/FinNguyen/Work/not-finn/kenglish/Kenglit-0.1.0-beta.dmg
 
 1. Double-click **`Kenglit-0.1.0-beta.dmg`**
-2. Drag **Kenglit** → **Applications** (or `~/Applications`)
+2. Drag **Kenglit** → **Applications** (`/Applications` — Finder sidebar)
 3. Eject the DMG
 4. First launch elsewhere: right-click Kenglit → **Open** (ad-hoc signed)
 5. Menu bar icon → **On**
 
-Finder:
-
-    open /Users/FinNguyen/Work/not-finn/kenglish/.worktrees/cleanup-dmg/Kenglit-0.1.0-beta.dmg
+Install location: **`/Applications/Kenglit.app`** (shows under Finder → Applications).
 
 ### From source
 
     make reinstall
+
+Same target: `/Applications/Kenglit.app`. Removes stale `~/Applications/Kenglit.app`.
 
 ## Use
 

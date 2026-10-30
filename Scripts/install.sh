@@ -2,13 +2,21 @@
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
-HOME_APPS="${HOME}/Applications"
-DEST="${HOME_APPS}/Kenglit.app"
+DEST="/Applications/Kenglit.app"
+STALE=(
+  "${HOME}/Applications/Kenglit.app"
+)
 
 cd "$ROOT"
 ./Scripts/pack-app.sh
 
-mkdir -p "$HOME_APPS"
+for p in "${STALE[@]}"; do
+  if [[ -d "$p" ]]; then
+    osascript -e "tell application \"Finder\" to delete (POSIX file \"$p\" as alias)" >/dev/null 2>&1 \
+      || mv "$p" "/tmp/kenglit-stale-$(date +%Y%m%d%H%M%S).app"
+  fi
+done
+
 if [[ -d "$DEST" ]]; then
   osascript -e "tell application \"Finder\" to delete (POSIX file \"$DEST\" as alias)" >/dev/null 2>&1 \
     || mv "$DEST" "/tmp/kenglit-old-install-$(date +%Y%m%d%H%M%S).app"
