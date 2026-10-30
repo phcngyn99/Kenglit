@@ -4,7 +4,8 @@
 
 - **Name:** Kenglit (`dev.finn.kenglit`)
 - **Remote:** https://github.com/phcngyn99/Kenglit
-- **Primary branch:** develop
+- **Default branch (GitHub):** main
+- **Integration branch:** develop
 - **Release channel:** beta (0.1.0-beta)
 - **Stack:** SwiftPM · AppKit menu-bar · macOS 13+
 - **Policy:** listed apps → English; all others → Vietnamese
@@ -31,6 +32,7 @@
 - Live install path: **`/Applications/Kenglit.app`** (`make install` / `make reinstall`)
 - `/Applications` write may prompt admin password via osascript
 - Rebuild DMG: `make dmg` → `Kenglit.dmg` (AppIcon volume + Finder icon)
+- Finder file icon uses a resource fork (not stored by git). After checkout/merge: `make dmg-icon`
 - Do not put release DMGs under `dist/` (gitignored)
 - Uninstall also clears stale `~/Applications/Kenglit.app`
 
@@ -40,6 +42,7 @@
     make icons
     make reinstall
     make dmg
+    make dmg-icon
     make version
 
 ## Branding assets
