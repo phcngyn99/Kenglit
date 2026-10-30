@@ -52,6 +52,7 @@ This Mac has **no Developer ID certificate** (`0 valid identities`), so day-to-d
 5. Menu bar → **On**
 
 Do not disable Gatekeeper. Prefer Apple’s Privacy & Security flow (Sequoia+).
+Official steps: [If you want to open an app that hasn’t been notarized…](https://support.apple.com/en-gb/102445)
 
 ### From source (local ad-hoc)
 
