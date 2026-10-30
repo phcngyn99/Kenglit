@@ -10,7 +10,6 @@ final class SettingsWindowController: NSWindowController {
     private var loginButton: NSButton!
     private var errorLabel: NSTextField!
     var onClose: (() -> Void)?
-    private var appPickerController: AppPickerWindowController?
     /// Snapshot used by the table so scroll/recycle never reads a moving target.
     private var rows: [String] = []
 
@@ -190,28 +189,80 @@ final class SettingsWindowController: NSWindowController {
     }
 
     @objc private func pickFromApplications() {
-        if let existing = appPickerController {
-            existing.showWindow(nil)
-            existing.window?.makeKeyAndOrderFront(nil)
-            NSApp.activate(ignoringOtherApps: true)
-            return
+        let panel = NSOpenPanel()
+        panel.title = "Add Apps"
+        panel.prompt = "Add"
+        panel.canChooseFiles = true
+        panel.canChooseDirectories = false
+        panel.allowsMultipleSelection = true
+        panel.treatsFilePackagesAsDirectories = false
+        panel.directoryURL = URL(fileURLWithPath: "/Applications")
+        if #available(macOS 11.0, *) {
+            panel.allowedContentTypes = [.application]
+        } else {
+            panel.allowedFileTypes = ["app"]
         }
+        // Icon/column browser like Finder
+        panel.message = ""
+
         NSApp.setActivationPolicy(.regular)
         NSApp.activate(ignoringOtherApps: true)
+        window?.makeKeyAndOrderFront(nil)
 
-        let picker = AppPickerWindowController(preferences: preferences)
-        appPickerController = picker
-        picker.onAdded = { [weak self] in
-            self?.reloadTable()
-        }
-        picker.onDone = { [weak self] in
-            self?.reloadTable()
-            self?.appPickerController = nil
-            self?.window?.makeKeyAndOrderFront(nil)
+        // runModal always shows for accessory apps; beginSheet can hang.
+        let result = panel.runModal()
+        defer {
+            // Stay regular while Settings open
+            window?.makeKeyAndOrderFront(nil)
             NSApp.activate(ignoringOtherApps: true)
         }
-        picker.showWindow(nil)
-        picker.window?.makeKeyAndOrderFront(nil)
+        guard result == .OK else { return }
+
+        var added = 0
+        var failed = 0
+        for url in panel.urls {
+            guard let bid = Self.bundleID(fromAppURL: url) else {
+                failed += 1
+                continue
+            }
+            if bid == "dev.finn.kenglit" { continue }
+            let before = Set(preferences.watchedBundleIDs)
+            preferences.addWatchedBundleID(bid)
+            let name = FileManager.default.displayName(atPath: url.path)
+                .replacingOccurrences(of: ".app", with: "")
+            if !name.isEmpty {
+                WatchedAppsUserNames.set(name, for: bid)
+            }
+            if !before.contains(bid) { added += 1 }
+        }
+
+        reloadTable()
+        NotificationCenter.default.post(name: .kenglitPrefsChanged, object: nil)
+
+        if added > 0 {
+            errorLabel.textColor = .secondaryLabelColor
+            errorLabel.stringValue = "+\(added)"
+        } else if failed > 0 {
+            errorLabel.textColor = .systemRed
+            errorLabel.stringValue = "Read fail"
+        } else {
+            errorLabel.textColor = .secondaryLabelColor
+            errorLabel.stringValue = "None new"
+        }
+    }
+
+    private static func bundleID(fromAppURL url: URL) -> String? {
+        // Prefer Info.plist — Bundle(url:) often nil for arbitrary .app picks.
+        let infoURL = url.appendingPathComponent("Contents/Info.plist")
+        if let dict = NSDictionary(contentsOf: infoURL) as? [String: Any],
+           let bid = dict["CFBundleIdentifier"] as? String,
+           !bid.isEmpty {
+            return bid
+        }
+        if let bid = Bundle(url: url)?.bundleIdentifier, !bid.isEmpty {
+            return bid
+        }
+        return nil
     }
 
     @objc private func resetDefaults() {
