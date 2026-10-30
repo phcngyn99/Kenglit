@@ -26,20 +26,11 @@ final class SettingsWindowController: NSWindowController {
     private var statusLabel: NSTextField!
     private var searchField: NSSearchField!
     private var table: SettingsTableView!
-    private var displayRows: [Row] = []
-    private var customExpanded = true
-    private var builtInExpanded = true
+    private var displayRows: [SettingsListModel.Row] = []
+    private var listModel = SettingsListModel()
     private var lastSectionToggleAt: CFAbsoluteTime = 0
-    private var filter = ""
     private var iconCache: [String: NSImage] = [:]
     var onClose: (() -> Void)?
-
-    private enum Section { case custom, builtIn }
-    private enum Row {
-        case header(Section, title: String, expanded: Bool)
-        case app(bundleID: String, removable: Bool)
-        case empty(String)
-    }
 
     init(preferences: PreferencesStore) {
         self.preferences = preferences
@@ -272,37 +263,11 @@ final class SettingsWindowController: NSWindowController {
     private func reload() {
         enabledSwitch.state = preferences.isEnabled ? .on : .off
         loginSwitch.state = preferences.launchAtLogin ? .on : .off
-
-        let q = filter.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
-        func match(_ bid: String) -> Bool {
-            guard !q.isEmpty else { return true }
-            return Self.friendlyName(for: bid).lowercased().contains(q)
-                || bid.lowercased().contains(q)
-        }
-
-        let custom = preferences.userWatchedBundleIDs.filter(match)
-        let builtIn = preferences.activeBuiltInBundleIDs.filter(match)
-        var rows: [Row] = []
-
-        rows.append(.header(.custom, title: "User Apps", expanded: customExpanded))
-        if customExpanded {
-            if custom.isEmpty {
-                rows.append(.empty(q.isEmpty ? "No user apps added." : "No matching applications."))
-            } else {
-                for bid in custom { rows.append(.app(bundleID: bid, removable: true)) }
-            }
-        }
-
-        rows.append(.header(.builtIn, title: "Built-in Apps", expanded: builtInExpanded))
-        if builtInExpanded {
-            if builtIn.isEmpty {
-                rows.append(.empty(q.isEmpty ? "No built-in apps." : "No matching applications."))
-            } else {
-                for bid in builtIn { rows.append(.app(bundleID: bid, removable: true)) }
-            }
-        }
-
-        displayRows = rows
+        displayRows = listModel.rows(
+            customIDs: preferences.userWatchedBundleIDs,
+            builtInIDs: preferences.activeBuiltInBundleIDs,
+            name: Self.friendlyName(for:)
+        )
         table.reloadData()
     }
 
@@ -325,24 +290,13 @@ final class SettingsWindowController: NSWindowController {
     }
 
     @objc private func searchChanged() {
-        filter = searchField.stringValue
-        expandSectionsMatchingSearch()
+        listModel.filter = searchField.stringValue
+        listModel.expandSectionsMatching(
+            customIDs: preferences.userWatchedBundleIDs,
+            builtInIDs: preferences.activeBuiltInBundleIDs,
+            name: Self.friendlyName(for:)
+        )
         reload()
-    }
-
-    /// Expand sections that contain the current query so Enter / typing reveals hits.
-    private func expandSectionsMatchingSearch() {
-        let q = filter.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
-        guard !q.isEmpty else { return }
-        func match(_ bid: String) -> Bool {
-            Self.friendlyName(for: bid).lowercased().contains(q) || bid.lowercased().contains(q)
-        }
-        if preferences.userWatchedBundleIDs.contains(where: match) {
-            customExpanded = true
-        }
-        if preferences.activeBuiltInBundleIDs.contains(where: match) {
-            builtInExpanded = true
-        }
     }
 
     @objc private func showAbout(_ sender: Any?) {
@@ -431,55 +385,31 @@ final class SettingsWindowController: NSWindowController {
         alert.addButton(withTitle: "Cancel")
         guard alert.runModal() == .alertFirstButtonReturn else { return }
         preferences.restoreDefaultApplications()
-        filter = ""
+        listModel.filter = ""
         searchField.stringValue = ""
-        customExpanded = true
-        builtInExpanded = true
+        listModel.customExpanded = true
+        listModel.builtInExpanded = true
         reload()
         NotificationCenter.default.post(name: .kenglitPrefsChanged, object: nil)
         statusLabel.stringValue = ""
     }
 
-    private func toggleSection(_ section: Section) {
+    private func toggleSection(_ section: SettingsListModel.Section) {
         // Guard double-delivery (cell + table both see same click).
         let now = CFAbsoluteTimeGetCurrent()
         if now - lastSectionToggleAt < 0.2 { return }
         lastSectionToggleAt = now
-        switch section {
-        case .custom: customExpanded.toggle()
-        case .builtIn: builtInExpanded.toggle()
-        }
+        listModel.toggle(section)
         reload()
     }
 
-    private func sectionOwning(row: Int) -> Section? {
-        var i = row
-        while i >= 0 {
-            if case let .header(section, _, _) = displayRows[i] {
-                return section
-            }
-            i -= 1
-        }
-        return nil
-    }
-
     fileprivate func handleTableRowClick(_ row: Int) -> Bool {
-        guard row >= 0, row < displayRows.count else { return false }
-        switch displayRows[row] {
-        case let .header(section, _, _):
-            toggleSection(section)
-            return true
-        case .empty:
-            if let section = sectionOwning(row: row) {
-                toggleSection(section)
-                return true
-            }
-            return false
-        case .app:
+        guard let section = SettingsListModel.handleRowClick(row, in: displayRows) else {
             return false
         }
+        toggleSection(section)
+        return true
     }
-
 
     private static func bundleID(fromAppURL url: URL) -> String? {
         let infoURL = url.appendingPathComponent("Contents/Info.plist")
@@ -668,9 +598,7 @@ extension SettingsWindowController: NSWindowDelegate {
 extension SettingsWindowController: NSSearchFieldDelegate {
     func control(_ control: NSControl, textView: NSTextView, doCommandBy commandSelector: Selector) -> Bool {
         if commandSelector == #selector(NSResponder.insertNewline(_:)) {
-            filter = searchField.stringValue
-            expandSectionsMatchingSearch()
-            reload()
+            searchChanged()
             return true
         }
         return false
@@ -694,8 +622,6 @@ extension SettingsWindowController: NSTableViewDataSource, NSTableViewDelegate {
         return false
     }
 
-
-
     func tableView(_ tableView: NSTableView, viewFor tableColumn: NSTableColumn?, row: Int) -> NSView? {
         guard row >= 0, row < displayRows.count else { return nil }
         switch displayRows[row] {
@@ -713,14 +639,13 @@ extension SettingsWindowController: NSTableViewDataSource, NSTableViewDelegate {
             let cell = (tableView.makeView(withIdentifier: id, owner: nil) as? EmptyHintCell)
                 ?? EmptyHintCell(frame: .zero)
             cell.identifier = id
-            let section = sectionOwning(row: row)
+            let section = SettingsListModel.sectionOwning(row: row, in: displayRows)
             cell.configure(msg) { [weak self] in
                 guard let self, let section else { return }
-                // Collapse only when currently expanded (empty row only exists when expanded).
                 self.toggleSection(section)
             }
             return cell
-        case let .app(bid, _):
+        case let .app(bid):
             let id = NSUserInterfaceItemIdentifier("app")
             let cell = (tableView.makeView(withIdentifier: id, owner: nil) as? AppRowCell)
                 ?? AppRowCell(frame: .zero)
