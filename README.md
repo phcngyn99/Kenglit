@@ -29,27 +29,26 @@ Repo root file (version is inside the app / About, not the filename):
 
     Kenglit.dmg
 
-On this machine:
-
-    /Users/FinNguyen/Work/not-finn/kenglish/Kenglit.dmg
-
     open /Users/FinNguyen/Work/not-finn/kenglish/Kenglit.dmg
 
-1. Double-click **`Kenglit.dmg`**
-2. Drag **Kenglit** → **Applications** (`/Applications` — Finder sidebar)
-3. Eject the DMG
-4. First launch elsewhere: right-click Kenglit → **Open** (ad-hoc signed)
-5. Menu bar icon → **On**
+1. Open **`Kenglit.dmg`** — window shows steps 1–3
+2. Drag **Kenglit** → **Applications**
+3. First open: **right-click Kenglit → Open → Open** (see window / **Install Guide.txt**)
+4. Menu bar → **On**
 
-Install location: **`/Applications/Kenglit.app`** (Finder → Applications).
-Version: Settings → ⓘ (About).
+### Gatekeeper (new Mac)
+
+Ad-hoc beta — not notarized. Warning is normal.
+
+- **Right-click** Applications → Kenglit → **Open** → **Open**
+- Or Privacy & Security → **Open Anyway**
+- After download, if stuck: `xattr -cr /Applications/Kenglit.app` then right-click Open
 
 ### From source
 
     make reinstall
 
-Target: **`/Applications/Kenglit.app`** (Finder → Applications).
-May prompt once for **admin password** (account is not in `admin` group).
+Target: **`/Applications/Kenglit.app`**. May prompt for admin password.
 Also removes stale `~/Applications/Kenglit.app`.
 
 ## Use
