@@ -2,6 +2,17 @@ import AppKit
 import UniformTypeIdentifiers
 import KenglitCore
 
+/// Shared row geometry so icons + chevrons share one left edge.
+private enum SettingsListLayout {
+    static let leading: CGFloat = 12
+    static let chevron: CGFloat = 14
+    static let icon: CGFloat = 28
+    static let iconGap: CGFloat = 10
+    static let trailing: CGFloat = 12
+    static let appRowHeight: CGFloat = 40
+    static let headerRowHeight: CGFloat = 30
+}
+
 @MainActor
 final class SettingsWindowController: NSWindowController {
     private let preferences: PreferencesStore
@@ -490,8 +501,8 @@ extension SettingsWindowController: NSTableViewDataSource, NSTableViewDelegate {
     func tableView(_ tableView: NSTableView, heightOfRow row: Int) -> CGFloat {
         guard row >= 0, row < displayRows.count else { return 40 }
         switch displayRows[row] {
-        case .header: return 30
-        case .app: return 40
+        case .header: return SettingsListLayout.headerRowHeight
+        case .app: return SettingsListLayout.appRowHeight
         }
     }
 
@@ -558,12 +569,11 @@ final class SectionHeaderCell: NSTableCellView {
 
         disclosure.bezelStyle = .inline
         disclosure.isBordered = false
+        disclosure.isTransparent = true
         disclosure.imagePosition = .imageOnly
+        disclosure.imageScaling = .scaleProportionallyDown
         disclosure.target = self
         disclosure.action = #selector(toggleTapped)
-        if let img = NSImage(systemSymbolName: "chevron.right", accessibilityDescription: "Toggle") {
-            disclosure.image = img
-        }
         disclosure.contentTintColor = .secondaryLabelColor
         addSubview(disclosure)
 
@@ -593,8 +603,9 @@ final class SectionHeaderCell: NSTableCellView {
         titleField.stringValue = title.uppercased()
         subField.stringValue = subtitle
         let symbol = expanded ? "chevron.down" : "chevron.right"
-        if let img = NSImage(systemSymbolName: symbol, accessibilityDescription: "Toggle") {
-            disclosure.image = img
+        if let base = NSImage(systemSymbolName: symbol, accessibilityDescription: "Toggle") {
+            let conf = NSImage.SymbolConfiguration(pointSize: 11, weight: .semibold)
+            disclosure.image = base.withSymbolConfiguration(conf) ?? base
         }
         disclosure.contentTintColor = .secondaryLabelColor
         needsLayout = true
@@ -611,15 +622,16 @@ final class SectionHeaderCell: NSTableCellView {
 
     override func layout() {
         super.layout()
-        let h = max(bounds.height, 30)
-        let w = max(bounds.width, 120)
-        let inset: CGFloat = 8
-        let chev: CGFloat = 16
-        disclosure.frame = NSRect(x: inset, y: (h - chev) / 2, width: chev, height: chev)
-        let titleX = disclosure.frame.maxX + 4
-        titleField.frame = NSRect(x: titleX, y: 0, width: w * 0.45, height: h)
-        let subW = w * 0.4
-        subField.frame = NSRect(x: w - subW - inset, y: 0, width: subW, height: h)
+        let h = bounds.height > 1 ? bounds.height : SettingsListLayout.headerRowHeight
+        let w = bounds.width > 1 ? bounds.width : 200
+        let L = SettingsListLayout.self
+        let chevY = ((h - L.chevron) * 0.5).rounded(.down)
+        disclosure.frame = NSRect(x: L.leading, y: chevY, width: L.chevron, height: L.chevron)
+        let titleX = L.leading + L.chevron + 6
+        let subW: CGFloat = min(120, w * 0.35)
+        let titleW = max(w - titleX - subW - L.trailing - 8, 40)
+        titleField.frame = NSRect(x: titleX, y: 0, width: titleW, height: h)
+        subField.frame = NSRect(x: w - subW - L.trailing, y: 0, width: subW, height: h)
     }
 }
 
@@ -660,26 +672,35 @@ final class AppIconNameCell: NSTableCellView {
     func configure(icon: NSImage, name: String, toolTip: String, dimmed: Bool = false) {
         iconView.image = icon
         iconView.alphaValue = dimmed ? 0.55 : 1.0
+        // Keep image locked to view bounds (no uneven NSImage size bleed).
+        iconView.imageScaling = .scaleProportionallyUpOrDown
+        iconView.imageAlignment = .alignCenter
         nameField.stringValue = name
         nameField.textColor = dimmed ? .secondaryLabelColor : .labelColor
         self.toolTip = toolTip
         needsLayout = true
-        layoutSubtreeIfNeeded()
+        needsDisplay = true
     }
 
     override func layout() {
         super.layout()
-        let h = max(bounds.height, 40)
-        let w = max(bounds.width, 120)
-        let icon: CGFloat = 28
-        let inset: CGFloat = 10
-        iconView.frame = NSRect(x: inset, y: (h - icon) / 2, width: icon, height: icon)
-        let textX = iconView.frame.maxX + 10
-        nameField.frame = NSRect(x: textX, y: 0, width: max(w - textX - inset, 40), height: h)
+        let h = bounds.height > 1 ? bounds.height : SettingsListLayout.appRowHeight
+        let w = bounds.width > 1 ? bounds.width : 200
+        let L = SettingsListLayout.self
+        // Same leading edge as section chevron → icons form one column.
+        let iconY = ((h - L.icon) * 0.5).rounded(.down)
+        iconView.frame = NSRect(x: L.leading, y: iconY, width: L.icon, height: L.icon)
+        let textX = L.leading + L.icon + L.iconGap
+        nameField.frame = NSRect(
+            x: textX,
+            y: 0,
+            width: max(w - textX - L.trailing, 40),
+            height: h
+        )
     }
 
     override var intrinsicContentSize: NSSize {
-        NSSize(width: NSView.noIntrinsicMetric, height: 40)
+        NSSize(width: NSView.noIntrinsicMetric, height: SettingsListLayout.appRowHeight)
     }
 }
 
