@@ -212,6 +212,17 @@ def main() -> int:
             return 1
 
     app1024 = render_svg(app_svg, 1024)
+    bbox = app1024.getbbox()
+    if bbox:
+        content = app1024.crop(bbox)
+        canvas = 1024
+        cw, ch = content.size
+        scale = max(canvas / cw, canvas / ch) * 1.04
+        nw, nh = int(cw * scale), int(ch * scale)
+        scaled = content.resize((nw, nh), Image.Resampling.LANCZOS)
+        filled = Image.new("RGBA", (canvas, canvas), (0, 0, 0, 0))
+        filled.paste(scaled, ((canvas - nw) // 2, (canvas - nh) // 2 - 8), scaled)
+        app1024 = filled
     save_png(app1024, LOGO / "kenglit-app-icon-1024.png")
     save_png(app1024.resize((512, 512), Image.Resampling.LANCZOS), LOGO / "kenglit-app-icon-512.png")
 
