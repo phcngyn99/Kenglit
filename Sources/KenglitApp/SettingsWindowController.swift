@@ -22,6 +22,7 @@ final class SettingsWindowController: NSWindowController {
         window.center()
         super.init(window: window)
         window.contentView = buildContent()
+        window.delegate = self
         reloadTable()
     }
 
@@ -255,6 +256,20 @@ final class SettingsWindowController: NSWindowController {
         return u
     }
 
+
+    private static func friendlyName(for bundleID: String) -> String {
+        let mapped = WatchedAppsUserNames.displayName(for: bundleID)
+        if mapped != bundleID { return mapped }
+        if let url = NSWorkspace.shared.urlForApplication(withBundleIdentifier: bundleID) {
+            if let name = displayName(forAppURL: url), !name.isEmpty {
+                WatchedAppsUserNames.set(name, for: bundleID)
+                return name
+            }
+            return url.deletingPathExtension().lastPathComponent
+        }
+        return bundleID
+    }
+
     private static func log(_ msg: String) {
         let line = "\(ISO8601DateFormatter().string(from: Date())) \(msg)\n"
         let path = "/tmp/kenglit-picker.log"
@@ -268,6 +283,12 @@ final class SettingsWindowController: NSWindowController {
             try? data.write(to: URL(fileURLWithPath: path))
         }
         NSLog("Kenglit %@", msg)
+    }
+}
+
+extension SettingsWindowController: NSWindowDelegate {
+    func windowDidBecomeKey(_ notification: Notification) {
+        reloadTable()
     }
 }
 
@@ -287,8 +308,9 @@ extension SettingsWindowController: NSTableViewDataSource, NSTableViewDelegate {
                 return t
             }()
         let bid = preferences.watchedBundleIDs[row]
-        let name = WatchedAppsUserNames.displayName(for: bid)
-        cell.stringValue = name == bid ? bid : name
+        let name = Self.friendlyName(for: bid)
+        // Always show name + id so bundle-only entries are findable
+        cell.stringValue = name == bid ? bid : "\(name)  ·  \(bid)"
         return cell
     }
 }
