@@ -25,7 +25,7 @@ final class SettingsWindowController: NSWindowController {
     private var loginSwitch: NSSwitch!
     private var statusLabel: NSTextField!
     private var searchField: NSSearchField!
-    private var table: NSTableView!
+    private var table: SettingsTableView!
     private var displayRows: [Row] = []
     private var customExpanded = true
     private var builtInExpanded = true
@@ -98,8 +98,8 @@ final class SettingsWindowController: NSWindowController {
         let appsTitle = sectionLabel("Applications")
         root.addSubview(appsTitle)
 
-        let addBtn = textButton("Add", action: #selector(addApplications))
-        addBtn.toolTip = "Choose apps that should use English"
+        let addBtn = textButton("Enforce [EN] an App", action: #selector(addApplications))
+        addBtn.toolTip = "Choose an app that should stay English"
         root.addSubview(addBtn)
 
         searchField = NSSearchField()
@@ -121,7 +121,7 @@ final class SettingsWindowController: NSWindowController {
         scroll.wantsLayer = true
         scroll.layer?.cornerRadius = 6
 
-        table = NSTableView()
+        table = SettingsTableView()
         table.headerView = nil
         table.rowHeight = SettingsUI.rowH
         table.allowsMultipleSelection = false
@@ -137,6 +137,9 @@ final class SettingsWindowController: NSWindowController {
         table.addTableColumn(col)
         table.dataSource = self
         table.delegate = self
+        table.onRowMouseDown = { [weak self] row in
+            self?.handleTableRowClick(row) ?? false
+        }
         scroll.documentView = table
         root.addSubview(scroll)
 
@@ -362,8 +365,8 @@ final class SettingsWindowController: NSWindowController {
 
     @objc private func addApplications() {
         let panel = NSOpenPanel()
-        panel.title = "Choose Applications"
-        panel.prompt = "Add"
+        panel.title = "Enforce English on App"
+        panel.prompt = "Enforce"
         panel.canChooseFiles = true
         panel.canChooseDirectories = false
         panel.allowsMultipleSelection = true
@@ -432,6 +435,18 @@ final class SettingsWindowController: NSWindowController {
         }
         reload()
     }
+
+    private func sectionOwning(row: Int) -> Section? {
+        var i = row
+        while i >= 0 {
+            if case let .header(section, _, _) = displayRows[i] {
+                return section
+            }
+            i -= 1
+        }
+        return nil
+    }
+
 
     private static func bundleID(fromAppURL url: URL) -> String? {
         let infoURL = url.appendingPathComponent("Contents/Info.plist")
@@ -646,6 +661,24 @@ extension SettingsWindowController: NSTableViewDataSource, NSTableViewDelegate {
         return false
     }
 
+    /// Returns true when the click was a section chrome row (handled).
+    fileprivate func handleTableRowClick(_ row: Int) -> Bool {
+        guard row >= 0, row < displayRows.count else { return false }
+        switch displayRows[row] {
+        case let .header(section, _, _):
+            toggleSection(section)
+            return true
+        case .empty:
+            if let section = sectionOwning(row: row) {
+                toggleSection(section)
+                return true
+            }
+            return false
+        case .app:
+            return false
+        }
+    }
+
     func tableView(_ tableView: NSTableView, viewFor tableColumn: NSTableColumn?, row: Int) -> NSView? {
         guard row >= 0, row < displayRows.count else { return nil }
         switch displayRows[row] {
@@ -663,7 +696,12 @@ extension SettingsWindowController: NSTableViewDataSource, NSTableViewDelegate {
             let cell = (tableView.makeView(withIdentifier: id, owner: nil) as? EmptyHintCell)
                 ?? EmptyHintCell(frame: .zero)
             cell.identifier = id
-            cell.configure(msg)
+            let section = sectionOwning(row: row)
+            cell.configure(msg) { [weak self] in
+                guard let self, let section else { return }
+                // Collapse only when currently expanded (empty row only exists when expanded).
+                self.toggleSection(section)
+            }
             return cell
         case let .app(bid, _):
             let id = NSUserInterfaceItemIdentifier("app")
@@ -684,6 +722,22 @@ extension SettingsWindowController: NSTableViewDataSource, NSTableViewDelegate {
     }
 }
 
+/// Forwards header/empty clicks; app rows use normal NSTableView handling.
+final class SettingsTableView: NSTableView {
+    /// Return true if the click was fully handled (skip super.mouseDown).
+    var onRowMouseDown: ((Int) -> Bool)?
+
+    override func mouseDown(with event: NSEvent) {
+        let local = convert(event.locationInWindow, from: nil)
+        let row = self.row(at: local)
+        if row >= 0, onRowMouseDown?(row) == true {
+            // Header/empty handled — skip super so reload mid-click can't bounce.
+            return
+        }
+        super.mouseDown(with: event)
+    }
+}
+
 final class SectionHeaderCell: NSView {
     private let chevron = NSImageView(frame: .zero)
     private let title = NSTextField(labelWithString: "")
@@ -696,6 +750,10 @@ final class SectionHeaderCell: NSView {
         title.font = .systemFont(ofSize: 11, weight: .semibold)
         title.textColor = .secondaryLabelColor
         title.lineBreakMode = .byTruncatingTail
+        title.isEditable = false
+        title.isSelectable = false
+        title.isEnabled = false
+        title.refusesFirstResponder = true
         addSubview(title)
     }
     @available(*, unavailable) required init?(coder: NSCoder) { fatalError() }
@@ -711,8 +769,12 @@ final class SectionHeaderCell: NSView {
         needsLayout = true
     }
     override func acceptsFirstMouse(for event: NSEvent?) -> Bool { true }
+    /// Claim full-row hits so label/chevron never steal collapse clicks.
+    override func hitTest(_ point: NSPoint) -> NSView? {
+        bounds.contains(point) ? self : nil
+    }
     override func mouseDown(with event: NSEvent) {
-        onToggle?()
+        // Collapse/expand is handled in tableView(_:shouldSelectRow:).
     }
     override func layout() {
         super.layout()
@@ -726,15 +788,32 @@ final class SectionHeaderCell: NSView {
 
 final class EmptyHintCell: NSView {
     private let label = NSTextField(labelWithString: "")
+    private var onCollapse: (() -> Void)?
+
     override init(frame frameRect: NSRect) {
         super.init(frame: frameRect)
         label.font = .systemFont(ofSize: 11)
         label.textColor = .tertiaryLabelColor
         label.lineBreakMode = .byTruncatingTail
+        label.isEditable = false
+        label.isSelectable = false
+        label.isEnabled = false
+        label.refusesFirstResponder = true
         addSubview(label)
     }
     @available(*, unavailable) required init?(coder: NSCoder) { fatalError() }
-    func configure(_ text: String) { label.stringValue = text; needsLayout = true }
+    func configure(_ text: String, onCollapse: (() -> Void)? = nil) {
+        label.stringValue = text
+        self.onCollapse = onCollapse
+        needsLayout = true
+    }
+    override func hitTest(_ point: NSPoint) -> NSView? {
+        bounds.contains(point) ? self : nil
+    }
+    override func acceptsFirstMouse(for event: NSEvent?) -> Bool { true }
+    override func mouseDown(with event: NSEvent) {
+        // Collapse handled in tableView(_:shouldSelectRow:).
+    }
     override func layout() {
         super.layout()
         label.frame = NSRect(x: SettingsUI.iconPad + SettingsUI.icon + 8, y: 0,

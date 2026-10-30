@@ -31,7 +31,7 @@ App-only package (no DMG):
 ### Settings
 - **General:** Enable Kenglit · Launch at Login
 - **Applications:** search, **User Apps** / **Built-in Apps**
-- **Add** — pick apps that should stay English
+- **Enforce [EN] an App** — pick apps that should stay English
 - **−** on a row — remove (built-in removals persist)
 - **Restore Default** — factory app list; keeps General toggles
 
