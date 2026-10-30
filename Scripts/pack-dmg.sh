@@ -56,12 +56,5 @@ hdiutil convert "$RW_DMG" -format UDZO -imagekey zlib-level=9 -o "$DMG_PATH" >/d
 mv "$RW_DMG" "/tmp/kenglit-rw-done-$STAMP.dmg"
 mv "$STAGE" "/tmp/kenglit-dmg-stage-done-$STAMP"
 
-ICON_TMP="/tmp/kenglit-dmg-icon-$STAMP.icns"
-RSRC="/tmp/kenglit-dmg-icon-$STAMP.rsrc"
-cp "$ICON" "$ICON_TMP"
-sips -i "$ICON_TMP" >/dev/null
-DeRez -only icns "$ICON_TMP" > "$RSRC"
-Rez -append "$RSRC" -o "$DMG_PATH"
-SetFile -a C "$DMG_PATH"
-
+"$ROOT/Scripts/apply-dmg-icon.sh" "$DMG_PATH" "$ICON"
 echo "DMG: $DMG_PATH"
