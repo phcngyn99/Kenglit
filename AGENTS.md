@@ -37,9 +37,18 @@
 ## Commands
 
     make check
+    make icons
     make reinstall
     make dmg
     make version
+
+## Branding assets
+
+- Masters: `Resources/Logo/kenglit-app-icon.svg`, `kenglit-mark.svg`, `kenglit-mark-mono.svg`, `kenglit-menubar-template.svg`
+- App / DMG: colored mint keycap → `Resources/AppIcon.icns`
+- Menu bar: monochrome template PNGs `kenglitTemplate.png` / `@2x` (runtime loads these)
+- Regenerate: `make icons` (`Scripts/generate-icons.py`)
+- Previews: `docs/branding/`
 
 ## Code style
 
