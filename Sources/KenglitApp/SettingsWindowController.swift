@@ -6,6 +6,7 @@ import KenglitCore
 final class SettingsWindowController: NSWindowController {
     private let preferences: PreferencesStore
     private var table: NSTableView!
+    private var enabledButton: NSButton!
     private var loginButton: NSButton!
     private var errorLabel: NSTextField!
     var onClose: (() -> Void)?
@@ -34,6 +35,10 @@ final class SettingsWindowController: NSWindowController {
 
     private func buildContent() -> NSView {
         let root = NSView(frame: NSRect(x: 0, y: 0, width: 480, height: 520))
+
+        enabledButton = NSButton(checkboxWithTitle: "Enable", target: self, action: #selector(toggleEnabled))
+        enabledButton.translatesAutoresizingMaskIntoConstraints = false
+        root.addSubview(enabledButton)
 
         loginButton = NSButton(checkboxWithTitle: "Login start", target: self, action: #selector(toggleLogin))
         loginButton.translatesAutoresizingMaskIntoConstraints = false
@@ -98,16 +103,19 @@ final class SettingsWindowController: NSWindowController {
         root.addSubview(reset)
 
         NSLayoutConstraint.activate([
-            loginButton.leadingAnchor.constraint(equalTo: root.leadingAnchor, constant: 16),
-            loginButton.topAnchor.constraint(equalTo: root.topAnchor, constant: 14),
+            enabledButton.leadingAnchor.constraint(equalTo: root.leadingAnchor, constant: 16),
+            enabledButton.topAnchor.constraint(equalTo: root.topAnchor, constant: 14),
+
+            loginButton.leadingAnchor.constraint(equalTo: enabledButton.trailingAnchor, constant: 16),
+            loginButton.centerYAnchor.constraint(equalTo: enabledButton.centerYAnchor),
 
             errorLabel.leadingAnchor.constraint(equalTo: loginButton.trailingAnchor, constant: 12),
-            errorLabel.centerYAnchor.constraint(equalTo: loginButton.centerYAnchor),
+            errorLabel.centerYAnchor.constraint(equalTo: enabledButton.centerYAnchor),
             errorLabel.trailingAnchor.constraint(lessThanOrEqualTo: root.trailingAnchor, constant: -16),
 
             scroll.leadingAnchor.constraint(equalTo: root.leadingAnchor, constant: 16),
             scroll.trailingAnchor.constraint(equalTo: root.trailingAnchor, constant: -16),
-            scroll.topAnchor.constraint(equalTo: loginButton.bottomAnchor, constant: 12),
+            scroll.topAnchor.constraint(equalTo: enabledButton.bottomAnchor, constant: 12),
             scroll.bottomAnchor.constraint(equalTo: pickApps.topAnchor, constant: -12),
 
             pickApps.leadingAnchor.constraint(equalTo: root.leadingAnchor, constant: 16),
@@ -129,7 +137,13 @@ final class SettingsWindowController: NSWindowController {
     private func reloadTable() {
         rows = preferences.watchedBundleIDs
         table.reloadData()
+        enabledButton.state = preferences.isEnabled ? .on : .off
         loginButton.state = preferences.launchAtLogin ? .on : .off
+    }
+
+    @objc private func toggleEnabled() {
+        preferences.isEnabled = (enabledButton.state == .on)
+        NotificationCenter.default.post(name: .kenglitPrefsChanged, object: nil)
     }
 
     @objc private func toggleLogin() {
