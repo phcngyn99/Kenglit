@@ -47,7 +47,9 @@ Install location: **`/Applications/Kenglit.app`** (shows under Finder → Applic
 
     make reinstall
 
-Same target: `/Applications/Kenglit.app`. Removes stale `~/Applications/Kenglit.app`.
+Target: **`/Applications/Kenglit.app`** (Finder → Applications).
+May prompt once for **admin password** (account is not in `admin` group).
+Also removes stale `~/Applications/Kenglit.app`.
 
 ## Use
 
