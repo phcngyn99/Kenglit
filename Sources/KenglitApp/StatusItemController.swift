@@ -14,13 +14,15 @@ final class StatusItemController: NSObject, NSMenuDelegate {
     init(model: AppModel) {
         self.model = model
         super.init()
-        statusItem = NSStatusBar.system.statusItem(withLength: NSStatusItem.squareLength)
+
+        statusItem = NSStatusBar.system.statusItem(withLength: NSStatusItem.variableLength)
         if let button = statusItem.button {
             button.imagePosition = .imageOnly
             button.imageScaling = .scaleProportionallyDown
             button.toolTip = "Kenglit"
             button.wantsLayer = true
         }
+
         rebuildMenu()
 
         model.preferences.$isEnabled
@@ -58,9 +60,7 @@ final class StatusItemController: NSObject, NSMenuDelegate {
         let image = MenuBarIcon.make(enabled: enabled)
         button.image = image
         button.appearsDisabled = false
-        // Off state: slightly dim the whole button for instant readability
-        button.alphaValue = enabled ? 1.0 : 0.55
-        button.contentTintColor = nil
+        button.alphaValue = enabled ? 1.0 : 0.45
     }
 
     private func updateTooltip(enabled: Bool) {
@@ -72,7 +72,6 @@ final class StatusItemController: NSObject, NSMenuDelegate {
         button.wantsLayer = true
         guard let layer = button.layer else { return }
 
-        // Brief scale bounce
         let scale = CABasicAnimation(keyPath: "transform.scale")
         scale.fromValue = 0.82
         scale.toValue = 1.0
@@ -80,33 +79,12 @@ final class StatusItemController: NSObject, NSMenuDelegate {
         scale.timingFunction = CAMediaTimingFunction(name: .easeOut)
         layer.add(scale, forKey: "kenglit.scale")
 
-        // Opacity flash
         let opacity = CABasicAnimation(keyPath: "opacity")
         opacity.fromValue = emphasizeOn ? 0.35 : 0.2
-        opacity.toValue = emphasizeOn ? 1.0 : 0.55
+        opacity.toValue = emphasizeOn ? 1.0 : 0.45
         opacity.duration = 0.28
         opacity.timingFunction = CAMediaTimingFunction(name: .easeOut)
         layer.add(opacity, forKey: "kenglit.opacity")
-
-        // Teal “live” ping only when turning On (drawn as temporary green tint via filter-less second pulse)
-        if emphasizeOn {
-            let glow = CABasicAnimation(keyPath: "opacity")
-            glow.beginTime = CACurrentMediaTime()
-            glow.fromValue = 1.0
-            glow.toValue = 1.0
-            glow.duration = 0.01
-            // Use shadow pulse if available
-            layer.shadowColor = NSColor.systemTeal.cgColor
-            layer.shadowOpacity = 0.0
-            layer.shadowRadius = 6
-            layer.shadowOffset = .zero
-            let shadow = CABasicAnimation(keyPath: "shadowOpacity")
-            shadow.fromValue = 0.85
-            shadow.toValue = 0.0
-            shadow.duration = 0.45
-            shadow.timingFunction = CAMediaTimingFunction(name: .easeOut)
-            layer.add(shadow, forKey: "kenglit.shadow")
-        }
     }
 
     private func rebuildMenu() {
@@ -151,11 +129,8 @@ final class StatusItemController: NSObject, NSMenuDelegate {
         } else {
             model.monitor.stop()
         }
-        // Icon animation comes from $isEnabled sink; menu rebuild for labels
         rebuildMenu()
     }
-
-
 
     @objc private func openSettings() {
         if let existing = settingsController {
@@ -174,8 +149,7 @@ final class StatusItemController: NSObject, NSMenuDelegate {
     }
 }
 
-
-/// Menu-bar template glyphs drawn at runtime (crisp On/Off states).
+/// Menu bar template icon (system-tinted for light/dark bar).
 enum MenuBarIcon {
     static func make(enabled: Bool, size: CGFloat = 18) -> NSImage {
         let final = NSImage(size: NSSize(width: size, height: size), flipped: false) { rect in
@@ -184,49 +158,46 @@ enum MenuBarIcon {
             let radius = size * 0.22
             let border = NSBezierPath(roundedRect: box, xRadius: radius, yRadius: radius)
 
-            if enabled {
-                // ON: solid tile + white K + teal live pip
-                NSColor(calibratedWhite: 0.12, alpha: 1).setFill()
-                border.fill()
-                drawK(in: box, color: .white, fontSize: size * 0.62)
+            // Draw black; isTemplate makes menu bar tint it.
+            NSColor.black.setStroke()
+            NSColor.black.setFill()
 
-                let pipR = size * 0.09
+            if enabled {
+                border.lineWidth = max(size * 0.10, 1.2)
+                border.stroke()
+                drawK(in: box, alpha: 1.0, fontSize: size * 0.62)
+                let pipR = size * 0.10
                 let pip = NSRect(
-                    x: box.maxX - pipR * 1.6,
-                    y: box.minY + pipR * 0.35,
-                    width: pipR * 1.5,
-                    height: pipR * 1.5
+                    x: box.maxX - pipR * 1.5,
+                    y: box.minY + pipR * 0.2,
+                    width: pipR * 1.4,
+                    height: pipR * 1.4
                 )
-                NSColor(calibratedRed: 0.18, green: 0.78, blue: 0.60, alpha: 1).setFill()
                 NSBezierPath(ovalIn: pip).fill()
             } else {
-                // OFF: outline + muted K + slash
-                NSColor.labelColor.withAlphaComponent(0.85).setStroke()
-                border.lineWidth = max(size * 0.09, 1.1)
+                border.lineWidth = max(size * 0.08, 1.0)
                 border.stroke()
-                drawK(in: box, color: NSColor.labelColor.withAlphaComponent(0.55), fontSize: size * 0.58)
-
+                drawK(in: box, alpha: 0.55, fontSize: size * 0.58)
                 let slash = NSBezierPath()
                 slash.move(to: NSPoint(x: box.minX + box.width * 0.18, y: box.minY + box.height * 0.22))
                 slash.line(to: NSPoint(x: box.maxX - box.width * 0.18, y: box.maxY - box.height * 0.22))
                 slash.lineWidth = max(size * 0.11, 1.3)
                 slash.lineCapStyle = .round
-                NSColor.labelColor.withAlphaComponent(0.7).setStroke()
                 slash.stroke()
             }
             return true
         }
-        final.isTemplate = false
+        final.isTemplate = true
         final.size = NSSize(width: size, height: size)
         return final
     }
 
-    private static func drawK(in box: NSRect, color: NSColor, fontSize: CGFloat) {
+    private static func drawK(in box: NSRect, alpha: CGFloat, fontSize: CGFloat) {
         let paragraph = NSMutableParagraphStyle()
         paragraph.alignment = .center
         let attrs: [NSAttributedString.Key: Any] = [
             .font: NSFont.systemFont(ofSize: fontSize, weight: .bold),
-            .foregroundColor: color,
+            .foregroundColor: NSColor.black.withAlphaComponent(alpha),
             .paragraphStyle: paragraph,
         ]
         let text = NSString(string: "K")

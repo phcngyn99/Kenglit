@@ -1,32 +1,45 @@
 import AppKit
 import KenglitCore
 
+/// Owns long-lived objects so menu bar status item never deallocates.
+@MainActor
+final class AppRuntime {
+    static let shared = AppRuntime()
+
+    let model: AppModel
+    let status: StatusItemController
+    private var prefsObserver: NSObjectProtocol?
+
+    private init() {
+        let model = AppModel()
+        self.model = model
+        self.status = StatusItemController(model: model)
+
+        prefsObserver = NotificationCenter.default.addObserver(
+            forName: .kenglitPrefsChanged,
+            object: nil,
+            queue: .main
+        ) { [weak self] _ in
+            Task { @MainActor in
+                guard let self else { return }
+                if self.model.preferences.isEnabled {
+                    self.model.monitor.start()
+                } else {
+                    self.model.monitor.stop()
+                }
+            }
+        }
+    }
+}
+
 @main
 enum KenglitMain {
     static func main() {
         let app = NSApplication.shared
-        app.setActivationPolicy(.accessory) // menu-bar only, no Dock
+        app.setActivationPolicy(.accessory)
 
-        let model = AppModel()
-        let status = StatusItemController(model: model)
-
-        // Keep strong refs
-        _ = status
-
-        // Re-sync monitor when settings toggle Enabled without going through menu
-        NotificationCenter.default.addObserver(
-            forName: .kenglitPrefsChanged,
-            object: nil,
-            queue: .main
-        ) { _ in
-            Task { @MainActor in
-                if model.preferences.isEnabled {
-                    model.monitor.start()
-                } else {
-                    model.monitor.stop()
-                }
-            }
-        }
+        // Permanent retain — DO NOT drop this reference.
+        _ = AppRuntime.shared
 
         app.run()
     }
