@@ -17,8 +17,8 @@ Menu bar app. Terminal focus -> EN. Else -> VI.
 4. Settings -> apps / login start
 
 ## Add app
-Focus app -> Settings -> Add front
-Or paste bundle id.
+Settings -> Apps… (pick from /Applications)
+Or Add front / paste bundle id.
 
     osascript -e 'id of app "Cursor"'
 

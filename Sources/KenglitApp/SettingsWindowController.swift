@@ -1,4 +1,5 @@
 import AppKit
+import UniformTypeIdentifiers
 import KenglitCore
 
 @MainActor
@@ -68,11 +69,15 @@ final class SettingsWindowController: NSWindowController {
         root.addSubview(remove)
 
         let addFront = NSButton(title: "Add front", target: self, action: #selector(addFrontmost))
-        addFront.frame = NSRect(x: 20, y: 16, width: 160, height: 28)
+        addFront.frame = NSRect(x: 20, y: 16, width: 100, height: 28)
         root.addSubview(addFront)
 
+        let pickApps = NSButton(title: "Apps…", target: self, action: #selector(pickFromApplications))
+        pickApps.frame = NSRect(x: 130, y: 16, width: 90, height: 28)
+        root.addSubview(pickApps)
+
         let reset = NSButton(title: "Reset", target: self, action: #selector(resetDefaults))
-        reset.frame = NSRect(x: 190, y: 16, width: 150, height: 28)
+        reset.frame = NSRect(x: 230, y: 16, width: 80, height: 28)
         root.addSubview(reset)
 
         return root
@@ -113,11 +118,58 @@ final class SettingsWindowController: NSWindowController {
     }
 
     @objc private func addFrontmost() {
-        guard let id = NSWorkspace.shared.frontmostApplication?.bundleIdentifier,
+        guard let app = NSWorkspace.shared.frontmostApplication,
+              let id = app.bundleIdentifier,
               id != "dev.finn.kenglit" else { return }
         preferences.addWatchedBundleID(id)
+        if let name = app.localizedName, !name.isEmpty {
+            WatchedAppsUserNames.set(name, for: id)
+        }
         reloadTable()
         NotificationCenter.default.post(name: .kenglitPrefsChanged, object: nil)
+    }
+
+    @objc private func pickFromApplications() {
+        let panel = NSOpenPanel()
+        panel.canChooseFiles = true
+        panel.canChooseDirectories = false
+        panel.allowsMultipleSelection = true
+        panel.allowedContentTypes = [.application]
+        panel.directoryURL = URL(fileURLWithPath: "/Applications", isDirectory: true)
+        panel.prompt = "Add"
+        panel.message = "Pick apps → EN"
+
+        // Also allow ~/Applications
+        panel.treatsFilePackagesAsDirectories = false
+
+        guard let win = window else { return }
+        panel.beginSheetModal(for: win) { [weak self] response in
+            guard let self, response == .OK else { return }
+            var added = 0
+            for url in panel.urls {
+                guard let bid = Bundle(url: url)?.bundleIdentifier,
+                      bid != "dev.finn.kenglit" else { continue }
+                let before = Set(self.preferences.watchedBundleIDs)
+                self.preferences.addWatchedBundleID(bid)
+                if !before.contains(bid) { added += 1 }
+
+                // Remember friendly name if we can read it from the app bundle
+                if let name = Bundle(url: url)?.object(forInfoDictionaryKey: "CFBundleName") as? String,
+                   !name.isEmpty {
+                    WatchedAppsUserNames.set(name, for: bid)
+                } else if let name = Bundle(url: url)?.object(forInfoDictionaryKey: "CFBundleDisplayName") as? String,
+                          !name.isEmpty {
+                    WatchedAppsUserNames.set(name, for: bid)
+                }
+            }
+            self.reloadTable()
+            NotificationCenter.default.post(name: .kenglitPrefsChanged, object: nil)
+            if added == 0 {
+                self.errorLabel.stringValue = "None new"
+            } else {
+                self.errorLabel.stringValue = ""
+            }
+        }
     }
 
     @objc private func resetDefaults() {
@@ -143,7 +195,7 @@ extension SettingsWindowController: NSTableViewDataSource, NSTableViewDelegate {
                 return t
             }()
         let bid = preferences.watchedBundleIDs[row]
-        let name = WatchedApps.displayName(for: bid)
+        let name = WatchedAppsUserNames.displayName(for: bid)
         cell.stringValue = name == bid ? bid : name
         return cell
     }

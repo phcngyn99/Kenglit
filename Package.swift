@@ -24,6 +24,7 @@ let package = Package(
                 .linkedFramework("AppKit"),
                 .linkedFramework("ServiceManagement"),
                 .linkedFramework("QuartzCore"),
+                .linkedFramework("UniformTypeIdentifiers"),
             ]
         ),
     ]
