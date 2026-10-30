@@ -4,7 +4,8 @@
 
 - **Name:** Kenglit (`dev.finn.kenglit`)
 - **Remote:** https://github.com/phcngyn99/Kenglit
-- **Primary branch:** develop
+- **Default branch (GitHub):** main
+- **Integration branch:** develop
 - **Release channel:** beta (0.1.0-beta)
 - **Stack:** SwiftPM · AppKit menu-bar · macOS 13+
 - **Policy:** listed apps → English; all others → Vietnamese

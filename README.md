@@ -5,7 +5,7 @@ listed apps to **English**, everything else to **Vietnamese**.
 
 **Status:** **Beta** (0.1.0-beta)
 **Repository:** https://github.com/phcngyn99/Kenglit
-**Default branch:** develop
+**Default branch:** main
 **Author:** Finn Nguyen × Hawking
 
 ## Version
@@ -70,7 +70,7 @@ Also removes stale `~/Applications/Kenglit.app`.
 
     git clone https://github.com/phcngyn99/Kenglit.git
     cd Kenglit
-    git checkout develop
+    git checkout main
     make check
     make reinstall
 
