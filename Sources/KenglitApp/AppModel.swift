@@ -14,6 +14,7 @@ final class AppModel: ObservableObject {
         self.preferences = preferences
         self.switcher = switcher
         self.monitor = AppFocusMonitor(preferences: preferences, switcher: switcher)
+        preferences.mergeMissingDefaults()
         // Reflect SMAppService state into prefs without writing back through didSet loop issues:
         // LaunchAtLogin reads system; assign only if different.
         let systemLogin = LaunchAtLogin.isEnabled

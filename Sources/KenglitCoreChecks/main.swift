@@ -32,6 +32,13 @@ do {
     Check.expect(set.contains("com.apple.Terminal"), "defaults contain Terminal")
     Check.expect(set.contains("com.microsoft.VSCode"), "defaults contain VSCode")
     Check.expect(set.contains("dev.warp.Warp-Stable"), "defaults contain Warp")
+    Check.expect(set.contains("com.todesktop.230313mzl4w4u92"), "defaults contain Cursor")
+    Check.expect(set.contains("dev.zed.Zed"), "defaults contain Zed")
+    Check.expect(set.contains("net.kovidgoyal.kitty"), "defaults contain kitty")
+    Check.expect(set.contains("com.jetbrains.pycharm"), "defaults contain PyCharm")
+    Check.expect(set.contains("com.docker.docker"), "defaults contain Docker")
+    Check.equal(WatchedApps.displayName(for: "com.apple.Terminal"), "Terminal", "display name Terminal")
+    Check.equal(WatchedApps.displayName(for: "com.unknown.app"), "com.unknown.app", "unknown display = id")
     Check.equal(
         WatchedApps.normalized(["  com.b ", "com.a", "com.a", "", "  "]),
         ["com.a", "com.b"],

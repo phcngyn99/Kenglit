@@ -42,6 +42,19 @@ Add result in Settings if different from seed default.
 swift run KenglitCoreChecks
 ```
 
+
+## Supported apps (default)
+
+Forces **English** when any of these are focused (others → Vietnamese):
+
+- Terminals: Terminal, iTerm2, Warp, Alacritty, WezTerm, Ghostty, kitty, Hyper, Tabby, Rio
+- Editors/IDEs: VS Code (+ Insiders), Cursor, Zed, Nova, Sublime Text, CotEditor, BBEdit, TextMate, Xcode
+- JetBrains: IntelliJ, WebStorm, PyCharm, GoLand, CLion, PhpStorm, RubyMine, DataGrip, Rider, RustRover, Android Studio
+- Tools: GitHub Desktop, Fork, Tower, GitKraken, Docker Desktop, Postman
+
+Add more anytime: **Settings → Add frontmost app** or paste a bundle ID.
+On upgrade, new defaults are merged into your list automatically.
+
 ## Design
 
 See `docs/superpowers/specs/2026-10-29-kenglit-design.md`.

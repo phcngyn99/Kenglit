@@ -48,4 +48,12 @@ public final class PreferencesStore: ObservableObject {
     public func removeWatchedBundleID(_ id: String) {
         setWatchedBundleIDs(watchedBundleIDs.filter { $0 != id })
     }
+
+    /// Add any newly shipped default bundle IDs the user doesn't already have.
+    public func mergeMissingDefaults() {
+        let current = Set(watchedBundleIDs)
+        let missing = WatchedApps.defaults.filter { !current.contains($0) }
+        guard !missing.isEmpty else { return }
+        setWatchedBundleIDs(watchedBundleIDs + missing)
+    }
 }

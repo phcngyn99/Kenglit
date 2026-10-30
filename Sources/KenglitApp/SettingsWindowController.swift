@@ -13,7 +13,7 @@ final class SettingsWindowController: NSWindowController {
     init(preferences: PreferencesStore) {
         self.preferences = preferences
         let window = NSWindow(
-            contentRect: NSRect(x: 0, y: 0, width: 520, height: 420),
+            contentRect: NSRect(x: 0, y: 0, width: 560, height: 460),
             styleMask: [.titled, .closable, .miniaturizable],
             backing: .buffered,
             defer: false
@@ -29,31 +29,31 @@ final class SettingsWindowController: NSWindowController {
     required init?(coder: NSCoder) { fatalError() }
 
     private func buildContent() -> NSView {
-        let root = NSView(frame: NSRect(x: 0, y: 0, width: 520, height: 420))
+        let root = NSView(frame: NSRect(x: 0, y: 0, width: 560, height: 460))
 
         enabledButton = NSButton(checkboxWithTitle: "Enabled", target: self, action: #selector(toggleEnabled))
         enabledButton.state = preferences.isEnabled ? .on : .off
-        enabledButton.frame = NSRect(x: 20, y: 380, width: 200, height: 24)
+        enabledButton.frame = NSRect(x: 20, y: 420, width: 200, height: 24)
         root.addSubview(enabledButton)
 
         loginButton = NSButton(checkboxWithTitle: "Launch at login", target: self, action: #selector(toggleLogin))
         loginButton.state = preferences.launchAtLogin ? .on : .off
-        loginButton.frame = NSRect(x: 20, y: 352, width: 200, height: 24)
+        loginButton.frame = NSRect(x: 20, y: 392, width: 200, height: 24)
         root.addSubview(loginButton)
 
         errorLabel = NSTextField(labelWithString: "")
         errorLabel.textColor = .systemRed
         errorLabel.font = .systemFont(ofSize: 11)
-        errorLabel.frame = NSRect(x: 230, y: 352, width: 260, height: 24)
+        errorLabel.frame = NSRect(x: 230, y: 392, width: 300, height: 24)
         root.addSubview(errorLabel)
 
-        let scroll = NSScrollView(frame: NSRect(x: 20, y: 90, width: 480, height: 250))
+        let scroll = NSScrollView(frame: NSRect(x: 20, y: 90, width: 520, height: 290))
         scroll.hasVerticalScroller = true
         scroll.borderType = .bezelBorder
         table = NSTableView(frame: scroll.bounds)
         let col = NSTableColumn(identifier: NSUserInterfaceItemIdentifier("id"))
-        col.title = "Watched bundle IDs"
-        col.width = 460
+        col.title = "Supported apps (EN when focused)"
+        col.width = 500
         table.addTableColumn(col)
         table.headerView = NSTableHeaderView()
         table.dataSource = self
@@ -61,16 +61,16 @@ final class SettingsWindowController: NSWindowController {
         scroll.documentView = table
         root.addSubview(scroll)
 
-        bundleField = NSTextField(frame: NSRect(x: 20, y: 50, width: 300, height: 24))
+        bundleField = NSTextField(frame: NSRect(x: 20, y: 50, width: 340, height: 24))
         bundleField.placeholderString = "bundle.id"
         root.addSubview(bundleField)
 
         let add = NSButton(title: "Add", target: self, action: #selector(addBundle))
-        add.frame = NSRect(x: 330, y: 48, width: 70, height: 28)
+        add.frame = NSRect(x: 370, y: 48, width: 70, height: 28)
         root.addSubview(add)
 
         let remove = NSButton(title: "Remove", target: self, action: #selector(removeSelected))
-        remove.frame = NSRect(x: 410, y: 48, width: 90, height: 28)
+        remove.frame = NSRect(x: 450, y: 48, width: 90, height: 28)
         root.addSubview(remove)
 
         let addFront = NSButton(title: "Add frontmost app", target: self, action: #selector(addFrontmost))
@@ -150,10 +150,13 @@ extension SettingsWindowController: NSTableViewDataSource, NSTableViewDelegate {
             ?? {
                 let t = NSTextField(labelWithString: "")
                 t.identifier = id
-                t.font = .monospacedSystemFont(ofSize: 12, weight: .regular)
+                t.font = .systemFont(ofSize: 12)
+                t.lineBreakMode = .byTruncatingMiddle
                 return t
             }()
-        cell.stringValue = preferences.watchedBundleIDs[row]
+        let bid = preferences.watchedBundleIDs[row]
+        let name = WatchedApps.displayName(for: bid)
+        cell.stringValue = name == bid ? bid : "\(name)  ·  \(bid)"
         return cell
     }
 }
