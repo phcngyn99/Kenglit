@@ -29,23 +29,28 @@
 ## Install artifact
 
 - Click-install file: **`Kenglit.dmg`** at repository root
-- Live install path: **`/Applications/Kenglit.app`** (`make install` / `make reinstall`)
-- `/Applications` write may prompt admin password via osascript
-- Rebuild DMG: `make dmg` → `Kenglit.dmg` (clean Finder layout + AppIcon)
-- DMG assets: `Resources/dmg/background.png`, `@2x`, `dmg-background.svg`, `layout.json`
-- Install instructions painted on background only (no Install Guide.txt)
-- Finder file icon uses a resource fork (not stored by git). After checkout/merge: `make dmg-icon`
-- Gatekeeper: ad-hoc beta — first launch right-click Open / Open Anyway (steps on DMG art + README)
-- Do not put release DMGs under `dist/` (gitignored)
-- Uninstall also clears stale `~/Applications/Kenglit.app`
+- Live install path: **`/Applications/Kenglit.app`**
+- `make dmg` — local/testing ad-hoc DMG (background-manual; Gatekeeper warning on new Macs)
+- `make release` — Developer ID sign + notarize + staple app and DMG (background-release)
+- DMG assets: `Resources/dmg/background-manual.*`, `background-release.*`, `layout.json`
+- Visible root items only: `Kenglit.app`, `Applications` (no Install Guide.txt)
+- Finder DMG icon is a resource fork — re-run `make dmg-icon` after checkout if needed
+- Do not commit `dist/`
+
+## Signing
+
+- Ad-hoc (default `make pack` / `make dmg`): not notarized; recipient sees verify warning
+- Release requires `SIGNING_IDENTITY` (Developer ID Application) + `NOTARY_PROFILE`
+- `make release` must fail if prerequisites missing — never ship ad-hoc as release
 
 ## Commands
 
     make check
     make icons
-    make reinstall
     make dmg
     make dmg-icon
+    make release
+    make reinstall
     make version
 
 ## Branding assets

@@ -11,10 +11,30 @@ ICON="$ROOT/Resources/AppIcon.icns"
 BG="$ROOT/Resources/dmg/background.png"
 BG2="$ROOT/Resources/dmg/background@2x.png"
 STAMP="$(date +%Y%m%d%H%M%S)"
+APP="${KENGLIT_APP_OUT:-$ROOT/dist/${APP_NAME}.app}"
+SKIP_PACK="${KENGLIT_SKIP_PACK_APP:-0}"
+BG_VARIANT="${KENGLIT_DMG_BG:-manual}"
 
-./Scripts/pack-app.sh
+if [[ "$BG_VARIANT" == "release" ]]; then
+  if [[ -f "$ROOT/Resources/dmg/background-release.png" ]]; then
+    cp "$ROOT/Resources/dmg/background-release.png" "$BG"
+  fi
+  if [[ -f "$ROOT/Resources/dmg/background-release@2x.png" ]]; then
+    cp "$ROOT/Resources/dmg/background-release@2x.png" "$ROOT/Resources/dmg/background@2x.png"
+  fi
+else
+  if [[ -f "$ROOT/Resources/dmg/background-manual.png" ]]; then
+    cp "$ROOT/Resources/dmg/background-manual.png" "$BG"
+  fi
+  if [[ -f "$ROOT/Resources/dmg/background-manual@2x.png" ]]; then
+    cp "$ROOT/Resources/dmg/background-manual@2x.png" "$ROOT/Resources/dmg/background@2x.png"
+  fi
+fi
 
-APP="$ROOT/dist/${APP_NAME}.app"
+if [[ "$SKIP_PACK" != "1" ]]; then
+  ./Scripts/pack-app.sh
+fi
+
 [[ -d "$APP" ]] || { echo "error: missing $APP" >&2; exit 1; }
 [[ -f "$ICON" ]] || { echo "error: missing $ICON" >&2; exit 1; }
 [[ -f "$BG" ]] || { echo "error: missing $BG" >&2; exit 1; }
@@ -67,7 +87,9 @@ tell application "Finder"
     set opts to the icon view options of container window
     set arrangement of opts to not arranged
     set icon size of opts to 96
-    set text size of opts to 13
+    try
+      set text size of opts to 13
+    end try
     try
       set background picture of opts to file ".background:background.png"
     end try

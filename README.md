@@ -23,33 +23,47 @@ listed apps to **English**, everything else to **Vietnamese**.
 
 ## Install
 
-### Click to install (DMG)
+Share file: **`Kenglit.dmg`** at the repo root.
 
-Repo root file (version is inside the app / About, not the filename):
+### A. Notarized release (when available)
 
-    Kenglit.dmg
+Built with `make release` (Developer ID + notarize + staple). On a new Mac:
 
-    open /Users/FinNguyen/Work/not-finn/kenglish/Kenglit.dmg
-
-1. Open **`Kenglit.dmg`** (instructions are on the window background)
+1. Open **Kenglit.dmg**
 2. Drag **Kenglit** → **Applications**
-3. Eject · open app · menu bar **On** (steps on the window)
-4. First open on a new Mac: **right-click → Open → Open** (also on the window)
+3. Eject the disk
+4. Double-click **Kenglit** in Applications
+5. Menu bar → **On**
 
-### Gatekeeper (new Mac)
+A normal “downloaded from the Internet” confirmation can still appear. That is not the malware-block dialog.
 
-Ad-hoc beta — not notarized. Warning is normal.
+### B. Unnotarized beta (current default artifact)
 
-- **Right-click** Applications → Kenglit → **Open** → **Open**
-- Or Privacy & Security → **Open Anyway**
-- After download, if stuck: `xattr -dr com.apple.quarantine /Applications/Kenglit.app`
+This Mac has **no Developer ID certificate** (`0 valid identities`), so day-to-day `make dmg` produces an **ad-hoc** build. Recipients may see:
 
-### From source
+> Apple could not verify “Kenglit” is free of malware…
+
+**That warning is expected** until a notarized release is published. Artwork cannot remove it.
+
+1. Open **Kenglit.dmg** (manual-approval steps are on the window)
+2. Drag **Kenglit** → **Applications**
+3. Open the installed app **once**
+4. **System Settings → Privacy & Security → Open Anyway** → confirm **Open**
+5. Menu bar → **On**
+
+Do not disable Gatekeeper. Prefer Apple’s Privacy & Security flow (Sequoia+).
+
+### From source (local ad-hoc)
 
     make reinstall
 
-Target: **`/Applications/Kenglit.app`**. May prompt for admin password.
-Also removes stale `~/Applications/Kenglit.app`.
+### Release build (Developer ID required)
+
+    export SIGNING_IDENTITY="Developer ID Application: Your Name (TEAMID)"
+    export NOTARY_PROFILE="Kenglit"   # from: xcrun notarytool store-credentials
+    make release
+
+`make release` **fails clearly** if the identity/profile is missing. It must not emit a silent ad-hoc DMG labeled as release.
 
 ## Use
 
