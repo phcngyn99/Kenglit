@@ -7,6 +7,7 @@ Guidance for coding agents working in this repository.
 - **Name:** Kenglit (dev.finn.kenglit)
 - **Remote:** https://github.com/phcngyn99/Kenglit
 - **Primary branch:** develop
+- **Release channel:** beta (0.1.0-beta)
 - **Stack:** SwiftPM · AppKit menu-bar app · macOS 13+
 - **Layout policy:** listed apps → English input; all others → Vietnamese
 

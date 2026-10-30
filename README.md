@@ -3,6 +3,7 @@
 Menu bar app for macOS. Frontmost app drives keyboard layout:
 listed apps to **English**, everything else to **Vietnamese**.
 
+**Status:** **Beta** (0.1.0-beta) — APIs and factory app list may still change.
 **Repository:** https://github.com/phcngyn99/Kenglit
 **Default branch:** develop
 **Author:** Finn Nguyen × Hawking
@@ -11,8 +12,9 @@ listed apps to **English**, everything else to **Vietnamese**.
 
 | | |
 |--|--|
-| **App** | **0.1.0** (CFBundleShortVersionString) |
-| **Build** | 1 (CFBundleVersion) |
+| **Channel** | **beta** |
+| **App** | **0.1.0-beta** (CFBundleShortVersionString) |
+| **Build** | 2 (CFBundleVersion) |
 | **Bundle ID** | dev.finn.kenglit |
 | **macOS** | **13.0 Ventura** and later |
 | **Architectures** | Apple Silicon + Intel |
@@ -20,6 +22,13 @@ listed apps to **English**, everything else to **Vietnamese**.
 | **Layouts** | English + Vietnamese input sources |
 
     make version
+
+## Beta notes
+
+- Ad-hoc signed: other Macs need right-click → Open the first time.
+- Built-in Apps is a factory bundle-id catalog, not a scan of installed apps.
+- Preferences (user apps, exclusions, enable, login) stay on each Mac in UserDefaults.
+- Expect rough edges; report issues on GitHub.
 
 ## Install
 
@@ -35,7 +44,7 @@ Avoids Spotlight doubles from leftover dist/ or worktree build products.
 ### DMG share
 
     make dmg
-    # -> ./Kenglit-0.1.0.dmg at repo root
+    # -> ./Kenglit-0.1.0-beta.dmg at repo root (name follows Info.plist)
 
 Double-click DMG, drag Kenglit into Applications.
 First launch on another Mac: right-click then Open (ad-hoc signed).
