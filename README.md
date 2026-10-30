@@ -31,12 +31,11 @@ Repo root file (version is inside the app / About, not the filename):
 
     open /Users/FinNguyen/Work/not-finn/kenglish/Kenglit.dmg
 
-1. Double-click **`Kenglit.dmg`**
-2. Drag **Kenglit** → **Applications** (window shows a guide + Applications shortcut)
-3. Open **Install Guide.txt** on the disk if needed
-4. Eject the DMG
-5. First launch (see Gatekeeper below)
-6. Menu bar icon → **On**
+1. Double-click **`Kenglit.dmg`** (window + **1. READ ME FIRST.txt** open)
+2. Drag **Kenglit** → **Applications**
+3. Eject the DMG
+4. First launch (see Gatekeeper below) — **right-click Open**, not double-click
+5. Menu bar icon → **On**
 
 Install location: **`/Applications/Kenglit.app`**. Version: Settings → ⓘ.
 

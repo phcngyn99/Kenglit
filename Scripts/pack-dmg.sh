@@ -9,7 +9,7 @@ RW_DMG="$ROOT/dist/${APP_NAME}-rw.dmg"
 DMG_PATH="$ROOT/${APP_NAME}.dmg"
 ICON="$ROOT/Resources/AppIcon.icns"
 BG="$ROOT/Resources/dmg/background.png"
-GUIDE="$ROOT/Resources/dmg/Install Guide.txt"
+GUIDE="$ROOT/Resources/dmg/1. READ ME FIRST.txt"
 STAMP="$(date +%Y%m%d%H%M%S)"
 
 ./Scripts/pack-app.sh
@@ -27,7 +27,7 @@ if [[ -f "$DMG_PATH" ]]; then mv "$DMG_PATH" "/tmp/kenglit-old-$STAMP.dmg"; fi
 mkdir -p "$STAGE/.background"
 cp -R "$APP" "$STAGE/${APP_NAME}.app"
 ln -s /Applications "$STAGE/Applications"
-cp "$GUIDE" "$STAGE/Install Guide.txt"
+cp "$GUIDE" "$STAGE/1. READ ME FIRST.txt"
 cp "$BG" "$STAGE/.background/background.png"
 cp "$ICON" "$STAGE/.VolumeIcon.icns"
 SetFile -c icnC "$STAGE/.VolumeIcon.icns" 2>/dev/null || true
@@ -69,15 +69,18 @@ tell application "Finder"
     try
       set background picture of opts to file ".background:background.png"
     end try
-    set position of item "$APP_NAME.app" of container window to {160, 220}
-    set position of item "Applications" of container window to {480, 220}
-    set position of item "Install Guide.txt" of container window to {320, 360}
+    set position of item "$APP_NAME.app" of container window to {160, 200}
+    set position of item "Applications" of container window to {480, 200}
+    set position of item "1. READ ME FIRST.txt" of container window to {320, 330}
     update without registering applications
     delay 1
     close
     open
-    delay 1
-    close
+    delay 0.8
+    try
+      open file "1. READ ME FIRST.txt" of disk "$APP_NAME"
+    end try
+    delay 0.5
   end tell
 end tell
 EOF

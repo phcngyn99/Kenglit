@@ -1,0 +1,36 @@
+READ ME FIRST — Install Kenglit
+================================
+
+You only need the DMG window. Follow these steps:
+
+1. Drag  Kenglit  into  Applications  (on this disk).
+2. Eject this disk (optional).
+3. FIRST OPEN (required on a new Mac)
+
+   Apple may show:
+   "Apple could not verify Kenglit is free of malware..."
+
+   That is normal for this beta (not notarized yet).
+
+   Do this instead of double-click:
+
+   A. Finder → Applications
+   B. Right-click (Control-click)  Kenglit
+   C. Choose  Open
+   D. Click  Open  again in the dialog
+
+   Or:
+   System Settings → Privacy & Security → Open Anyway
+
+   If still blocked after a browser download, Terminal:
+
+      xattr -cr /Applications/Kenglit.app
+
+   Then right-click → Open again.
+
+4. Menu bar icon → turn On
+5. System Settings → Keyboard → Input Sources
+   → enable English and Vietnamese
+
+Version: Settings → ⓘ About
+Support: https://github.com/phcngyn99/Kenglit
