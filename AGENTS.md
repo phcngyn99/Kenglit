@@ -22,15 +22,15 @@
 - `Sources/KenglitCoreChecks/` — checks (`make check`)
 - `Resources/` — Info.plist, icons
 - `Scripts/` — pack / install / dmg helpers
-- `Kenglit-0.1.0-beta.dmg` — tracked release image (repo root)
+- `Kenglit.dmg` — tracked release image (repo root; version in Info.plist / About)
 - `docs/superpowers/` — design + plan
 
 ## Install artifact
 
-- Click-install file: **`Kenglit-0.1.0-beta.dmg`** at repository root
+- Click-install file: **`Kenglit.dmg`** at repository root
 - Live install path: **`/Applications/Kenglit.app`** (`make install` / `make reinstall`)
 - `/Applications` write may prompt admin password via osascript
-- Rebuild DMG: `make dmg` → same repo-root path (AppIcon volume + Finder icon)
+- Rebuild DMG: `make dmg` → `Kenglit.dmg` (AppIcon volume + Finder icon)
 - Do not put release DMGs under `dist/` (gitignored)
 - Uninstall also clears stale `~/Applications/Kenglit.app`
 

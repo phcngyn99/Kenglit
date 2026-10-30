@@ -3,12 +3,10 @@ set -euo pipefail
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 cd "$ROOT"
 
-VERSION="$(/usr/libexec/PlistBuddy -c 'Print CFBundleShortVersionString' Resources/Info.plist 2>/dev/null || echo 0.1.0)"
 APP_NAME="Kenglit"
-DMG_NAME="${APP_NAME}-${VERSION}"
 STAGE="$ROOT/dist/dmg-stage"
-RW_DMG="$ROOT/dist/${DMG_NAME}-rw.dmg"
-DMG_PATH="$ROOT/${DMG_NAME}.dmg"
+RW_DMG="$ROOT/dist/${APP_NAME}-rw.dmg"
+DMG_PATH="$ROOT/${APP_NAME}.dmg"
 ICON="$ROOT/Resources/AppIcon.icns"
 STAMP="$(date +%Y%m%d%H%M%S)"
 
