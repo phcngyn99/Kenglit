@@ -1,11 +1,11 @@
-.PHONY: help build check icons pack dmg dmg-icon install uninstall reinstall open version clean release
+.PHONY: help build check icons pack dmg dmg-icon dmg-bg-dpi install uninstall reinstall open version clean release
 
 ROOT := $(abspath $(dir $(lastword $(MAKEFILE_LIST))))
 APP  := /Applications/Kenglit.app
 PLIST := $(ROOT)/Resources/Info.plist
 
 help:
-	@echo "make build | check | icons | pack | dmg | dmg-icon | release | install | uninstall | reinstall | open | version | clean"
+	@echo "make build | check | icons | pack | dmg | dmg-bg-dpi | dmg-icon | release | install | uninstall | reinstall | open | version | clean"
 
 build:
 	cd $(ROOT) && swift build --product Kenglit
@@ -20,7 +20,10 @@ icons:
 pack:
 	$(ROOT)/Scripts/pack-app.sh
 
-dmg:
+dmg-bg-dpi:
+	python3 $(ROOT)/Scripts/normalize-background-density.py $(ROOT)/Resources/dmg
+
+dmg: dmg-bg-dpi
 	$(ROOT)/Scripts/pack-dmg.sh
 
 dmg-icon:
