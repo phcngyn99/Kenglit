@@ -198,4 +198,109 @@ do {
     )
 }
 
+// --- SettingsListModel: User / Built-in expand & collapse ---
+do {
+    var model = SettingsListModel()
+    let custom = ["com.example.Chrome"]
+    let builtIn = ["com.apple.Terminal", "com.microsoft.VSCode"]
+    let name: (String) -> String = {
+        switch $0 {
+        case "com.example.Chrome": return "Google Chrome"
+        case "com.apple.Terminal": return "Terminal"
+        case "com.microsoft.VSCode": return "Visual Studio Code"
+        default: return $0
+        }
+    }
+
+    var rows = model.rows(customIDs: custom, builtInIDs: builtIn, name: name)
+    Check.expect(
+        rows.contains { if case .header(.custom, _, true) = $0 { return true }; return false },
+        "User Apps expanded by default"
+    )
+    Check.expect(
+        rows.contains { if case .header(.builtIn, _, true) = $0 { return true }; return false },
+        "Built-in Apps expanded by default"
+    )
+    Check.expect(
+        rows.contains { if case .app(let id) = $0 { return id == "com.example.Chrome" }; return false },
+        "User Apps shows Chrome when expanded"
+    )
+    Check.expect(
+        rows.contains { if case .app(let id) = $0 { return id == "com.apple.Terminal" }; return false },
+        "Built-in shows Terminal when expanded"
+    )
+
+    model.toggle(.custom)
+    rows = model.rows(customIDs: custom, builtInIDs: builtIn, name: name)
+    Check.expect(!model.customExpanded, "User Apps collapsed flag")
+    Check.expect(model.builtInExpanded, "Built-in still expanded after User collapse")
+    Check.expect(
+        rows.contains { if case .header(.custom, _, false) = $0 { return true }; return false },
+        "User header shows collapsed"
+    )
+    Check.expect(
+        !rows.contains { if case .app(let id) = $0 { return id == "com.example.Chrome" }; return false },
+        "Chrome hidden when User collapsed"
+    )
+    Check.expect(
+        rows.contains { if case .app(let id) = $0 { return id == "com.apple.Terminal" }; return false },
+        "Terminal still visible"
+    )
+
+    model.toggle(.builtIn)
+    rows = model.rows(customIDs: custom, builtInIDs: builtIn, name: name)
+    Check.expect(!model.builtInExpanded, "Built-in collapsed flag")
+    Check.expect(
+        !rows.contains { if case .app = $0 { return true }; return false },
+        "No app rows when both collapsed"
+    )
+    Check.equal(rows.count, 2, "only two headers when both collapsed")
+
+    model.toggle(.custom)
+    rows = model.rows(customIDs: custom, builtInIDs: builtIn, name: name)
+    Check.expect(model.customExpanded, "User re-expanded")
+    Check.expect(
+        rows.contains { if case .app(let id) = $0 { return id == "com.example.Chrome" }; return false },
+        "Chrome back after re-expand"
+    )
+
+    rows = model.rows(customIDs: [], builtInIDs: builtIn, name: name)
+    Check.expect(
+        rows.contains { if case .empty("No user apps added.") = $0 { return true }; return false },
+        "empty User message when expanded and empty"
+    )
+
+    model.toggle(.custom)
+    rows = model.rows(customIDs: [], builtInIDs: [], name: name)
+    Check.expect(
+        !rows.contains { if case .empty = $0 { return true }; return false },
+        "no empty rows when sections collapsed"
+    )
+
+    model = SettingsListModel(customExpanded: true, builtInExpanded: true)
+    rows = model.rows(customIDs: custom, builtInIDs: builtIn, name: name)
+    Check.equal(SettingsListModel.handleRowClick(0, in: rows), .custom, "click User header")
+    Check.equal(SettingsListModel.handleRowClick(1, in: rows), nil, "click app is not section")
+    Check.equal(SettingsListModel.handleRowClick(2, in: rows), .builtIn, "click Built-in header")
+
+    model = SettingsListModel(customExpanded: true, builtInExpanded: false)
+    rows = model.rows(customIDs: [], builtInIDs: builtIn, name: name)
+    Check.equal(SettingsListModel.handleRowClick(1, in: rows), .custom, "click empty User collapses section")
+    Check.equal(SettingsListModel.handleRowClick(2, in: rows), .builtIn, "click collapsed Built-in header")
+
+    model = SettingsListModel(customExpanded: false, builtInExpanded: false, filter: "term")
+    model.expandSectionsMatching(customIDs: custom, builtInIDs: builtIn, name: name)
+    Check.expect(!model.customExpanded, "search Term does not expand User (no match)")
+    Check.expect(model.builtInExpanded, "search Term expands Built-in (Terminal match)")
+    rows = model.rows(customIDs: custom, builtInIDs: builtIn, name: name)
+    Check.expect(
+        rows.contains { if case .app(let id) = $0 { return id == "com.apple.Terminal" }; return false },
+        "Terminal visible under search"
+    )
+    Check.expect(
+        !rows.contains { if case .app(let id) = $0 { return id == "com.microsoft.VSCode" }; return false },
+        "VS Code filtered out by search"
+    )
+}
+
 Check.finish()
