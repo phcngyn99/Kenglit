@@ -1,0 +1,22 @@
+The artwork in this package cannot sign or notarize an application.
+
+Root cause observed in repository scripts:
+The main and develop packaging scripts use ad-hoc signing and suppress failures.
+They contain no notarization/stapling stage.
+The actual DMG sent to recipients still needs binary-level verification on macOS.
+
+To remove the unverified-developer/not-checked warning in normal distribution:
+Use a valid Developer ID Application identity and private key, hardened runtime,
+a secure timestamp, Accepted notarization, stapled tickets, and real recipient testing.
+This requires access to the appropriate Apple developer signing/notary resources.
+
+Without those prerequisites:
+A recipient may manually approve a trusted copy using Apple's Privacy & Security
+flow after attempting to open it. That is a local exception, not notarization.
+The warning is not eliminated from the distributed build.
+
+Use dmg-background-manual for unnotarized internal testing.
+Use dmg-background-release for an artifact passing release verification.
+Both use exactly two visible Finder items. No installer text guide is included.
+
+See AGENT_PROMPT.txt for the implementation and acceptance requirements.

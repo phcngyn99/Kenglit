@@ -1,0 +1,42 @@
+{
+  "status": "Design assets and release implementation handoff only; no app or DMG has been signed, notarized, stapled, or Gatekeeper-tested by this task.",
+  "content_size_points": {
+    "width": 760,
+    "height": 600
+  },
+  "coordinate_system": "top-left of Finder content area; icon centers; verify writer convention on macOS",
+  "icon_size_points": 96,
+  "label_font_size_points": 13,
+  "items": [
+    {
+      "name": "Kenglit.app",
+      "display_name": "Kenglit",
+      "x": 220,
+      "y": 232
+    },
+    {
+      "name": "Applications",
+      "x": 540,
+      "y": 232,
+      "symlink_target": "/Applications"
+    }
+  ],
+  "background_choices": {
+    "manual": "Use dmg-background-manual.svg for an ad-hoc or unnotarized build. Gives manual per-user approval instructions; does not establish developer trust or eliminate Gatekeeper warnings.",
+    "release": "Use dmg-background-release.svg for an artifact that passes the documented Developer ID, notarization, stapling, signature, and Gatekeeper release gates."
+  },
+  "visible_root_items": [
+    "Kenglit.app",
+    "Applications"
+  ],
+  "background_excludes": [
+    "Finder chrome",
+    "real file icons",
+    "native file labels",
+    "interactive buttons"
+  ],
+  "reviewed_refs": {
+    "main": "56573bed430ab4d4a2742e7695d3c93928566899",
+    "develop": "c2598d41744de36558e4921d1eff78e078857625"
+  }
+}
